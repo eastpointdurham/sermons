@@ -1,0 +1,41 @@
+name: Update Sermon Archive
+
+on:
+  schedule:
+    - cron: '0 14 * * 1'   # Every Monday at 2pm UTC (10am ET)
+  workflow_dispatch:        # Also allows manual run from GitHub Actions tab
+
+permissions:
+  contents: write           # Needed to commit index.html back to the repo
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build sermon archive
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          CHANNEL_ID: UCu5frCUoNL0rOGCAClqHBFA
+        run: python build_site.py
+
+      - name: Commit updated site
+        run: |
+          git config --global user.name  "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add index.html sermons.json
+          git diff --staged --quiet && echo "No changes." || (
+            git commit -m "Update sermon archive $(date +'%Y-%m-%d')" &&
+            git push
+          )
