@@ -128,6 +128,8 @@ def infer_series(s):
     return ""
 
 
+# NOTE: This template uses only single-quoted JS strings to avoid Python escape issues.
+# HTML attributes inside JS strings use double quotes (safe inside single-quoted JS strings).
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -205,27 +207,27 @@ main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
 </main>
 <script>
 var DATA = __DATA_JSON__;
-var SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
+var SERIES_ORDER = ['John','Colossians','Isaiah','Advent','Prayer','Together','Psalms','Special'];
 var allSeries = [];
 for (var i = 0; i < DATA.length; i++) {
   if (DATA[i].series && allSeries.indexOf(DATA[i].series) < 0) {
     allSeries.push(DATA[i].series);
   }
 }
-var active = "All";
+var active = 'All';
 var withTranscripts = 0;
 for (var i = 0; i < DATA.length; i++) { if (DATA[i].transcript) withTranscripts++; }
 
 function fmt(d) {
-  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"});
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
 }
 
-function esc(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function hi(text, q) {
@@ -233,32 +235,32 @@ function hi(text, q) {
   var escaped = esc(text);
   var lower = escaped.toLowerCase();
   var ql = q.toLowerCase();
-  var out = "";
+  var out = '';
   var i = 0;
   while (i < escaped.length) {
     var j = lower.indexOf(ql, i);
     if (j < 0) { out += escaped.slice(i); break; }
-    out += escaped.slice(i, j) + "<span class=hit>" + escaped.slice(j, j + ql.length) + "</span>";
+    out += escaped.slice(i, j) + '<span class=hit>' + escaped.slice(j, j + ql.length) + '</span>';
     i = j + ql.length;
   }
   return out;
 }
 
 function excerpt(transcript, q) {
-  if (!transcript || !q) { return ""; }
+  if (!transcript || !q) { return ''; }
   var lo = transcript.toLowerCase();
   var idx = lo.indexOf(q.toLowerCase());
-  if (idx < 0) { return ""; }
+  if (idx < 0) { return ''; }
   var start = Math.max(0, idx - 80);
   var end = Math.min(transcript.length, idx + 220);
-  return (start > 0 ? "..." : "") + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? "..." : "");
+  return (start > 0 ? '...' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? '...' : '');
 }
 
 function toggleTx(btn) {
   var card = btn.parentNode.parentNode;
-  var box = card.querySelector(".tx-full");
-  var isOpen = box.classList.toggle("open");
-  btn.textContent = isOpen ? "Hide transcript" : "Show transcript";
+  var box = card.querySelector('.tx-full');
+  var isOpen = box.classList.toggle('open');
+  btn.textContent = isOpen ? 'Hide transcript' : 'Show transcript';
 }
 
 function buildFilters() {
@@ -270,27 +272,30 @@ function buildFilters() {
   for (var i = 0; i < allSeries.length; i++) {
     if (SERIES_ORDER.indexOf(allSeries[i]) < 0) { rest.push(allSeries[i]); }
   }
-  var all = ["All"].concat(ordered).concat(rest);
-  var btns = "";
+  var all = ['All'].concat(ordered).concat(rest);
+  var el = document.getElementById('filters');
+  el.innerHTML = '';
   for (var i = 0; i < all.length; i++) {
-    var cls = all[i] === active ? "fb on" : "fb";
-    btns += "<button class=\"" + cls + "\" onclick=\"setFilter('" + all[i] + "')\">" + all[i] + "</button>";
+    var btn = document.createElement('button');
+    btn.className = all[i] === active ? 'fb on' : 'fb';
+    btn.textContent = all[i];
+    (function(name) { btn.onclick = function() { setFilter(name); }; })(all[i]);
+    el.appendChild(btn);
   }
-  document.getElementById("filters").innerHTML = btns;
-  document.getElementById("total").textContent = withTranscripts === DATA.length
-    ? "Full transcripts - " + DATA.length + " sermons"
-    : DATA.length + " sermons" + (withTranscripts ? " (" + withTranscripts + " with transcripts)" : "");
+  document.getElementById('total').textContent = withTranscripts === DATA.length
+    ? 'Full transcripts - ' + DATA.length + ' sermons'
+    : DATA.length + ' sermons' + (withTranscripts ? ' (' + withTranscripts + ' with transcripts)' : '');
 }
 
 function setFilter(f) { active = f; buildFilters(); render(); }
 
 function render() {
-  var raw = document.getElementById("q").value.trim();
+  var raw = document.getElementById('q').value.trim();
   var q = raw.toLowerCase();
   var list = [];
   for (var i = 0; i < DATA.length; i++) {
     var s = DATA[i];
-    if (active !== "All" && s.series !== active) { continue; }
+    if (active !== 'All' && s.series !== active) { continue; }
     if (!q) { list.push(s); continue; }
     if (s.title.toLowerCase().indexOf(q) >= 0 ||
         s.scripture.toLowerCase().indexOf(q) >= 0 ||
@@ -301,32 +306,32 @@ function render() {
       list.push(s);
     }
   }
-  document.getElementById("meta").textContent =
-    (q || active !== "All") ? list.length + " sermon" + (list.length !== 1 ? "s" : "") + " found" : "";
+  document.getElementById('meta').textContent =
+    (q || active !== 'All') ? list.length + ' sermon' + (list.length !== 1 ? 's' : '') + ' found' : '';
   if (!list.length) {
-    document.getElementById("results").innerHTML = "<div class=empty>No sermons match your search.</div>";
+    document.getElementById('results').innerHTML = '<div class=empty>No sermons match your search.</div>';
     return;
   }
-  var html = "";
+  var html = '';
   for (var i = 0; i < list.length; i++) {
     var s = list[i];
     var txSnip = excerpt(s.transcript, raw);
-    var txHtml = txSnip ? "<div class=\"tx-hit\">..." + txSnip + "...</div>" : "";
-    var badge = s.series ? "<span class=\"sb\">" + esc(s.series) + "</span>" : "";
-    var txBtn = s.transcript ? "<button class=\"tb\" onclick=\"toggleTx(this)\">Show transcript</button>" : "";
-    var txFull = s.transcript ? "<div class=\"tx-full\">" + esc(s.transcript) + "</div>" : "";
-    html += "<div class=\"card\">";
-    html += "<div class=\"ct\">" + hi(s.title, raw) + "</div>";
-    html += "<div class=\"cm\"><span>" + fmt(s.date) + "</span><span>" + esc(s.preacher) + "</span>" + badge + "</div>";
-    html += "<div class=\"cd\">" + hi(s.desc, raw) + "</div>";
+    var txHtml = txSnip ? '<div class="tx-hit">...' + txSnip + '...</div>' : '';
+    var badge  = s.series ? '<span class="sb">' + esc(s.series) + '</span>' : '';
+    var txBtn  = s.transcript ? '<button class="tb" onclick="toggleTx(this)">Show transcript</button>' : '';
+    var txFull = s.transcript ? '<div class="tx-full">' + esc(s.transcript) + '</div>' : '';
+    html += '<div class="card">';
+    html += '<div class="ct">' + hi(s.title, raw) + '</div>';
+    html += '<div class="cm"><span>' + fmt(s.date) + '</span><span>' + esc(s.preacher) + '</span>' + badge + '</div>';
+    html += '<div class="cd">' + hi(s.desc, raw) + '</div>';
     html += txHtml + txFull;
-    html += "<div class=\"cf\">";
-    html += "<span class=\"tag\">" + esc(s.scripture) + "</span>";
-    html += "<a class=\"wl\" href=\"" + s.url + "\" target=\"_blank\">Watch</a>";
+    html += '<div class="cf">';
+    html += '<span class="tag">' + esc(s.scripture) + '</span>';
+    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch</a>';
     html += txBtn;
-    html += "</div></div>";
+    html += '</div></div>';
   }
-  document.getElementById("results").innerHTML = html;
+  document.getElementById('results').innerHTML = html;
 }
 
 buildFilters();
