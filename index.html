@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eastpoint Church — Sermon Archive</title>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+:root{{
+  --bg:#f5f4f1;--surface:#fff;--border:#e2e0da;
+  --text:#1a1a18;--muted:#6b6965;
+  --accent:#185fa5;--accent-bg:#e6f1fb;--accent-text:#0c447c;
+  --tag-bg:#eeecea;--radius:10px;
+}}
+@media(prefers-color-scheme:dark){{
+  :root{{
+    --bg:#18181a;--surface:#232325;--border:#333336;
+    --text:#e8e6e1;--muted:#8a8884;
+    --accent:#4d9de0;--accent-bg:#0c2540;--accent-text:#7ec0f5;
+    --tag-bg:#2a2a2c;
+  }}
+}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}}
+header{{background:var(--surface);border-bottom:1px solid var(--border);padding:1.25rem 1.5rem;position:sticky;top:0;z-index:10}}
+.hdr{{max-width:820px;margin:0 auto}}
+.hdr-top{{display:flex;align-items:baseline;gap:1rem;margin-bottom:.9rem;flex-wrap:wrap}}
+h1{{font-size:1rem;font-weight:600}}
+.sub{{font-size:.78rem;color:var(--muted)}}
+.sw{{position:relative}}
+.sw svg{{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}}
+input[type=search]{{width:100%;padding:.5rem .75rem .5rem 2.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:.9rem;outline:none;appearance:none}}
+input[type=search]:focus{{border-color:var(--accent);box-shadow:0 0 0 3px rgba(24,95,165,.12)}}
+input[type=search]::-webkit-search-cancel-button{{-webkit-appearance:none}}
+.filters{{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}}
+.fb{{font-size:.73rem;padding:.22rem .65rem;border:1px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer;transition:all .15s}}
+.fb:hover{{border-color:var(--accent);color:var(--accent)}}
+.fb.on{{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text);font-weight:500}}
+main{{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}}
+.meta{{font-size:.78rem;color:var(--muted);margin-bottom:.9rem}}
+.card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.2rem;margin-bottom:.7rem}}
+.card:hover{{border-color:#bbb9b3}}
+.ct{{font-size:.95rem;font-weight:600;line-height:1.4;margin-bottom:.2rem}}
+.cm{{font-size:.75rem;color:var(--muted);margin-bottom:.55rem;display:flex;gap:.65rem;flex-wrap:wrap;align-items:center}}
+.cd{{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:.7rem}}
+.cf{{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}}
+.tag{{font-size:.7rem;background:var(--tag-bg);color:var(--muted);border-radius:4px;padding:.12rem .45rem;white-space:nowrap}}
+.sb{{font-size:.68rem;font-weight:500;border-radius:3px;padding:.1rem .4rem;background:var(--accent-bg);color:var(--accent-text)}}
+.wl{{font-size:.76rem;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;margin-left:auto}}
+.wl:hover{{text-decoration:underline}}
+.hit{{background:#fff3a0;color:#4a3800;border-radius:2px;padding:0 1px}}
+.tx-hit{{font-size:.78rem;color:var(--muted);line-height:1.6;margin-top:.4rem;margin-bottom:.3rem;border-left:2px solid var(--accent);padding-left:.5rem}}
+@media(prefers-color-scheme:dark){{.hit{{background:#4a3800;color:#ffe066}}}}
+.empty{{text-align:center;padding:3rem;color:var(--muted);font-size:.9rem}}
+.stats{{font-size:.73rem;color:var(--muted);margin-top:.4rem}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr">
+    <div class="hdr-top">
+      <h1>Eastpoint Church — Sermons</h1>
+      <span class="sub" id="total"></span>
+    </div>
+    <div class="sw">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="q" placeholder="Search titles, scripture, topics, or anything you've preached…" oninput="render()"/>
+    </div>
+    <div class="filters" id="filters"></div>
+  </div>
+</header>
+<main>
+  <div class="meta" id="meta"></div>
+  <div id="results"></div>
+</main>
+<script>
+const DATA = [{"id":"Mjg0nhzWjB8","date":"2026-06-24","title":"Embracing Mystery in Prayer","scripture":"Luke 8:40–56","preacher":"Peter Frey","series":"Prayer","desc":"In Luke 8:40–56, Jesus responds to faith in unexpected ways, reminding us that God is present even when His timing and purposes are beyond our understanding. Join Pastor Peter Frey as he explores how we can trust God and embrace the mystery of prayer. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=Mjg0nhzWjB8"},{"id":"DCu1e0_vQRo","date":"2026-06-16","title":"Hearing From God","scripture":"James 1:5–7","preacher":"Chris Hankins","series":"Prayer","desc":"In James 1, believers are encouraged to ask God for wisdom with faith and confidence. Join guest preacher Chris Hankins as he explores how we can hear from God, trust His guidance, and walk in His wisdom. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=DCu1e0_vQRo"},{"id":"AZ8mjzSWIGE","date":"2026-06-09","title":"Start with Stillness","scripture":"Psalm 131:1–3","preacher":"Peter Frey","series":"Psalms","desc":"In Psalm 131, we are invited to quiet our anxious hearts and rest in God's presence with childlike trust. Join Pastor Peter Frey as he explores how stillness before God shapes our prayer life and helps us find real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=AZ8mjzSWIGE"},{"id":"K47oghFvamI","date":"2026-06-05","title":"Teach Us to Pray","scripture":"Luke 11:1–4","preacher":"Peter Frey","series":"Prayer","desc":"In Luke 11, Jesus teaches His disciples how to pray and invites us into a deeper relationship with our Heavenly Father. Join Pastor Peter Frey as he explores the Lord’s Prayer and how prayer shapes our faith, dependence, and daily lives. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=K47oghFvamI"},{"id":"S4iCehDKOlg","date":"2026-05-26","title":"Pentecost Sunday","scripture":"Acts 2:1–11","preacher":"Peter Frey","series":"Special","desc":"In Acts 2, the Holy Spirit is poured out at Pentecost, empowering the church to proclaim the gospel to every nation. Join Pastor Peter Frey as he shares the power, presence, and mission of the Spirit-filled church. Experience real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=S4iCehDKOlg"},{"id":"LC-gSJ4Q0Ls","date":"2026-05-19","title":"True Religion","scripture":"Isaiah 58","preacher":"Peter Frey","series":"Isaiah","desc":"In Isaiah 58, God calls His people beyond empty religious activity into lives marked by justice, compassion, and wholehearted devotion. Join Pastor Peter Frey as he shares what true religion looks like and how it leads to real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=LC-gSJ4Q0Ls"},{"id":"2YUrPpUUOYQ","date":"2026-05-12","title":"The Invitation of Hope","scripture":"Isaiah 55","preacher":"Peter Frey","series":"Isaiah","desc":"In Isaiah 55, God invites all who are thirsty to come and receive life freely through Him. Join Pastor Peter Frey as he shares the hope, grace, and satisfaction found in responding to God’s invitation. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=2YUrPpUUOYQ"},{"id":"JyydXvRRAhU","date":"2026-04-30","title":"The Greatness of a God Who Is Near","scripture":"Isaiah 40","preacher":"Peter Frey","series":"Isaiah","desc":"Originally preached on April 26, 2026, this message from Isaiah 40 reveals the greatness of God and His nearness to His people. Join Pastor Peter Frey as he shares how the Creator of all things meets us in our weakness and renews our strength. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=JyydXvRRAhU"},{"id":"jA4QZ4C33WA","date":"2026-04-21","title":"The Empty Hope of Self-Sufficiency","scripture":"Isaiah 30","preacher":"Peter Frey","series":"Isaiah","desc":"In Isaiah 30, God warns against trusting in our own strength instead of Him. Join Pastor Peter Frey as he reveals the emptiness of self-sufficiency and the invitation to find true hope in God. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=jA4QZ4C33WA"},{"id":"u-wmJo0G2WY","date":"2026-04-09","title":"Resurrection Sunday","scripture":"Luke 24:1–8","preacher":"Easter Celebration","series":"Special","desc":"In Luke 24, the tomb is empty and Jesus is risen! Celebrate the resurrection and the victory over sin and death with Pastor Peter Frey as he shares the hope of new life in Christ. Experience real hope for real life this Easter at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=u-wmJo0G2WY"},{"id":"jB_pE3e_gBk","date":"2026-03-31","title":"Palm Sunday","scripture":"Luke 19:28–42","preacher":"Peter Frey","series":"Special","desc":"On Palm Sunday in Luke 19, Jesus enters Jerusalem as King, welcomed with praise yet moving toward the cross. Join Pastor Peter Frey as he shares the significance of this moment and how it points to real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=jB_pE3e_gBk"},{"id":"4qDemTHgzBU","date":"2026-03-24","title":"Christ in Community","scripture":"Colossians 4:7–18","preacher":"Kevin Bigelow","series":"Colossians","desc":"In Colossians 4:7–18, we see how the gospel is lived out through authentic Christian community. Join Kevin Bigelow as he shares how Christ works through relationships to encourage, strengthen, and build His church. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=4qDemTHgzBU"},{"id":"3ahl-C-sBk0","date":"2026-03-16","title":"Living in Light of the Gospel","scripture":"Colossians 4:2–6","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 4:2–6, Paul calls believers to live with prayerful dependence and gracious witness in the world. Join Pastor Peter Frey as he shares how the gospel shapes our words, actions, and mission. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=3ahl-C-sBk0"},{"id":"0tKAGTKbHqU","date":"2026-03-09","title":"How the Gospel Changes My Relationships","scripture":"Colossians 3:15–4:1","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 3:15–4:1, Paul shows how the gospel reshapes our relationships at home, at work, and in the church. Join Pastor Peter Frey as he shares how Christ-centered living brings peace, humility, and real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=0tKAGTKbHqU"},{"id":"2PuSeVjHBwM","date":"2026-03-02","title":"New Life in Christ","scripture":"Colossians 3:1–14","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 3:1–14, believers are called to set their hearts on things above and put on the new self in Christ. Join Pastor Peter Frey as he shares how new life in Jesus reshapes our identity, relationships, and daily living. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=2PuSeVjHBwM"},{"id":"sDyzBRQ-WZQ","date":"2026-02-26","title":"Christ + Nothing = Everything","scripture":"Colossians 2:6–23","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 2:6–23, Paul reminds believers that Christ is fully sufficient — we need nothing more. Join Pastor Peter Frey as he shares how freedom, fullness, and real hope for real life are found in Jesus alone at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=sDyzBRQ-WZQ"},{"id":"nugpG-wVZkc","date":"2026-02-18","title":"What Jesus Means for You","scripture":"Colossians 1:21–2:5","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 1:21–2:5, we see how the reconciling work of Jesus transforms our identity and purpose. Join Pastor Peter Frey as he shares what Christ’s supremacy means personally for you and how it leads to real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=nugpG-wVZkc"},{"id":"Dp1jF4N8Gms","date":"2026-02-10","title":"Who Is Jesus?","scripture":"Colossians 1:15–20","preacher":"Peter Frey","series":"Colossians","desc":"In Colossians 1, Paul reveals the supremacy and glory of Jesus Christ — fully God, creator, and reconciler of all things. Join Pastor Peter Frey as he explores who Jesus truly is and why it matters for real hope and real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=Dp1jF4N8Gms"},{"id":"7Qm-3K2buD8","date":"2026-01-26","title":"Embracing Weakness Together","scripture":"2 Corinthians 4:5–10","preacher":"Peter Frey","series":"Together","desc":"Originally preached on January 18, 2026, this message from 2 Corinthians 4 explores how God’s power is revealed through our weakness. Join Pastor Peter Frey as he shares stories of real hope and how Christ shines through fragile vessels at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=7Qm-3K2buD8"},{"id":"OmWxXqpmeK4","date":"2026-01-18","title":"Declaring Mercy Together","scripture":"1 Peter 2:9–12","preacher":"Peter Frey","series":"Together","desc":"In 1 Peter 2, believers are called to declare the praises of God through lives shaped by mercy. Join Pastor Peter Frey as he shares how mercy-filled lives reflect Christ to the world. Experience real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=OmWxXqpmeK4"},{"id":"O9lipVkhWM0","date":"2026-01-05","title":"Multiplying Disciples Together","scripture":"Matthew 28:18–20","preacher":"Peter Frey","series":"Together","desc":"In Matthew 28, Jesus calls His followers to make disciples of all nations. Join Pastor Peter Frey as he shares how God uses His church to multiply disciples and change lives. Discover real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=O9lipVkhWM0"},{"id":"kwdfasiR4Z4","date":"2025-12-22","title":"Love in the Midst of Brokenness","scripture":"1 John 4:9–10","preacher":"Advent","series":"John","desc":"In 1 John 4, we see the depth of God’s love revealed through Jesus Christ. Join Pastor Peter Frey as he shares how God’s love meets us in our brokenness and brings real hope for real life. Celebrate Advent with us at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=kwdfasiR4Z4"},{"id":"wvppHJFAPdg","date":"2025-12-22","title":"Joy in the Midst of Sorrow","scripture":"John 16:16–24","preacher":"Advent","series":"John","desc":"In John 16, Jesus promises a joy that rises even through sorrow. Join Pastor Peter Frey as he shares how Christ transforms grief into lasting joy. Experience real hope for real life this Advent at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=wvppHJFAPdg"},{"id":"OjegW5OPfq8","date":"2025-12-10","title":"Peace in the Midst of Chaos","scripture":"John 14:25–31","preacher":"Advent","series":"John","desc":"In John 14, Jesus promises His followers a peace the world cannot give. Join Pastor Peter Frey as he shares how we can find calm in the midst of chaos through Christ. Experience real hope for real life this Advent at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=OjegW5OPfq8"},{"id":"9ncc07RT3Os","date":"2025-12-04","title":"Hope in the Midst of Darkness","scripture":"Isaiah 9:1–7","preacher":"Advent","series":"Isaiah","desc":"In Isaiah 9, a light shines in the darkness — the promise of Jesus, our everlasting hope. Join Pastor Peter Frey as he shares how Christ brings light and peace in every season. Experience real hope for real life this Advent at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=9ncc07RT3Os"},{"id":"la-qPZ8jG3Q","date":"2025-11-24","title":"Jesus Is the Vine","scripture":"John 15","preacher":"Peter Frey","series":"John","desc":"In John 15, Jesus teaches that He is the Vine and we are the branches — apart from Him, we can do nothing. Join Pastor Peter Frey as he shares how abiding in Christ leads to true fruitfulness and real hope for real life.","transcript":"","url":"https://www.youtube.com/watch?v=la-qPZ8jG3Q"},{"id":"DEWimoCOmlQ","date":"2025-11-19","title":"Jesus Is the Way","scripture":"John 14","preacher":"Peter Frey","series":"John","desc":"In John 14, Jesus says, “I am the way, the truth, and the life.” Join Pastor Peter Frey as he shares how Jesus leads us to the Father and offers real hope for real life. Experience it this Sunday at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=DEWimoCOmlQ"},{"id":"6GM81BTH-_E","date":"2025-11-11","title":"The Good Shepherd","scripture":"John 10","preacher":"Peter Frey","series":"John","desc":"In John 10, Jesus reveals Himself as the Good Shepherd who lays down His life for His sheep and leads them into life to the full. Join Pastor Peter Frey at Eastpoint Church in Durham, NC, and discover real hope for real life in Christ.","transcript":"","url":"https://www.youtube.com/watch?v=6GM81BTH-_E"},{"id":"ltJyyc_2kW0","date":"2025-11-07","title":"Light of the World","scripture":"John 8","preacher":"Peter Frey","series":"John","desc":"In John 8, Jesus declares, “I am the Light of the World.” Join Pastor Peter Frey as he shares how Christ’s light overcomes darkness and brings real hope for real life. Experience it this Sunday at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=ltJyyc_2kW0"},{"id":"VZ07pFEuX4M","date":"2025-10-28","title":"Bread of Life","scripture":"John 6","preacher":"Peter Frey","series":"John","desc":"In John 6, Jesus declares Himself the Bread of Life — the only one who truly satisfies our deepest hunger. Join Pastor Peter Frey as he shares how real life is found in Jesus alone. Experience real hope for real life at Eastpoint Church in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=VZ07pFEuX4M"},{"id":"FE0uHcUDKcs","date":"2025-10-22","title":"Living Water","scripture":"John 4","preacher":"Peter Frey","series":"John","desc":"Discover the story of the Living Water in John 4 as Pastor Peter Frey shares how Jesus offers true satisfaction that never runs dry.  💧 Experience real hope for real life at www.eastpointdurham.com  Join us Sundays at Oak Grove Elementary — 10:00 AM in Durham, NC.","transcript":"","url":"https://www.youtube.com/watch?v=FE0uHcUDKcs"},{"id":"9Z45Gwgjwcc","date":"2025-10-08","title":"Real Life = New Life","scripture":"John 3:1-21","preacher":"Peter Frey","series":"John","desc":"In this message from John 1:1–14, Pastor Peter Frey explores how Jesus is the true source of real life — the Word made flesh who brings light to a dark world. Discover the hope and power found in knowing Him.  Originally preached on October 5, 2025 Location: Eastpoint Church (Oak Grove Elementary, Durham NC)","transcript":"","url":"https://www.youtube.com/watch?v=9Z45Gwgjwcc"},{"id":"NtVfx1ie0lQ","date":"2025-10-07","title":"The Source of Real Life","scripture":"John 1:1-14","preacher":"Peter Frey","series":"John","desc":"Originally preached on September 28, 2025 by Peter Frey Location: Eastpoint Church (Oak Grove Elementary, Durham NC)","transcript":"","url":"https://www.youtube.com/watch?v=NtVfx1ie0lQ"},{"id":"u3hsQ5bJ8QU","date":"2025-08-07","title":"How Long, O Lord?","scripture":"Psalm 13","preacher":"Peter Frey","series":"Psalms","desc":"A message on Psalm 13 exploring what it means to lament. Originally preached at Waypoint Church.","transcript":"","url":"https://www.youtube.com/watch?v=u3hsQ5bJ8QU"},{"id":"247spsTHZuE","date":"2025-08-07","title":"Life in the Waiting Room","scripture":"Psalm 130","preacher":"Peter Frey","series":"Psalms","desc":"","transcript":"","url":"https://www.youtube.com/watch?v=247spsTHZuE"},{"id":"WowKrrzOu8M","date":"2025-06-11","title":"Radical Hospitality","scripture":"Luke 7:36-50","preacher":"Peter Frey","series":"","desc":"A message on the practice of radical hospitality from Luke 7:36-50. Peter Frey explores what it looks like to create spaces of dignifying presence for our neighbors as we celebrate the image of God in every person.   Preached at Waypoint Church in Chapel Hill, NC.","transcript":"","url":"https://www.youtube.com/watch?v=WowKrrzOu8M"}];
+
+const SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
+const allSeries = [...new Set(DATA.filter(s=>s.series).map(s=>s.series))];
+let active = "All";
+const withTranscripts = DATA.filter(s=>s.transcript).length;
+
+function fmt(d) {{
+  return new Date(d+"T12:00:00").toLocaleDateString("en-US",{{month:"short",day:"numeric",year:"numeric"}});
+}}
+function esc(s) {{
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}}
+function hi(text, q) {{
+  if (!q) return esc(text);
+  return esc(text).replace(new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"),"<span class=hit>$1</span>");
+}}
+function excerpt(transcript, q, chars=220) {{
+  if (!transcript || !q) return "";
+  const lo = transcript.toLowerCase();
+  const i  = lo.indexOf(q.toLowerCase());
+  if (i < 0) return "";
+  const start = Math.max(0, i-80);
+  const end   = Math.min(transcript.length, i+chars);
+  let snip = (start>0?"…":"")+transcript.slice(start,end).trim()+(end<transcript.length?"…":"");
+  return hi(snip, q);
+}}
+
+function buildFilters() {{
+  const ordered = SERIES_ORDER.filter(s=>allSeries.includes(s));
+  const rest    = allSeries.filter(s=>!SERIES_ORDER.includes(s));
+  const all     = ["All",...ordered,...rest];
+  document.getElementById("filters").innerHTML = all.map(s=>
+    `<button class="fb${{s===active?" on":""}}" onclick="setFilter('${{s}}')">${{s}}</button>`
+  ).join("");
+  const txLabel = withTranscripts === DATA.length
+    ? `Full transcripts — ${{DATA.length}} sermons`
+    : `${{withTranscripts}} of ${{DATA.length}} sermons have transcripts`;
+  document.getElementById("total").textContent = txLabel;
+}}
+
+function setFilter(f) {{ active=f; buildFilters(); render(); }}
+
+function render() {{
+  const raw = document.getElementById("q").value.trim();
+  const q   = raw.toLowerCase();
+
+  let list = DATA.filter(s => {{
+    if (active !== "All" && s.series !== active) return false;
+    if (!q) return true;
+    return (
+      s.title.toLowerCase().includes(q)       ||
+      s.scripture.toLowerCase().includes(q)   ||
+      s.preacher.toLowerCase().includes(q)    ||
+      s.series.toLowerCase().includes(q)      ||
+      s.desc.toLowerCase().includes(q)        ||
+      (s.transcript && s.transcript.toLowerCase().includes(q))
+    );
+  }});
+
+  const meta = document.getElementById("meta");
+  meta.textContent = (q || active!=="All")
+    ? `${{list.length}} sermon${{list.length!==1?"s":""}} found`
+    : "";
+
+  if (!list.length) {{
+    document.getElementById("results").innerHTML =
+      "<div class=empty>No sermons match your search.</div>";
+    return;
+  }}
+
+  document.getElementById("results").innerHTML = list.map(s => {{
+    const txSnip = excerpt(s.transcript, raw);
+    const txHtml = txSnip
+      ? `<div class="tx-hit">"…${{txSnip}}…"</div>`
+      : "";
+    const seriesBadge = s.series ? `<span class="sb">${{esc(s.series)}}</span>` : "";
+    return `<div class="card">
+  <div class="ct">${{hi(s.title,raw)}}</div>
+  <div class="cm"><span>${{fmt(s.date)}}</span><span>${{esc(s.preacher)}}</span>${{seriesBadge}}</div>
+  <div class="cd">${{hi(s.desc,raw)}}</div>
+  ${{txHtml}}
+  <div class="cf">
+    <span class="tag">${{esc(s.scripture)}}</span>
+    <a class="wl" href="${{s.url}}" target="_blank">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+      Watch
+    </a>
+  </div>
+</div>`;
+  }}).join("");
+}}
+
+buildFilters();
+render();
+</script>
+</body>
+</html>
