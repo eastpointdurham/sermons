@@ -157,7 +157,7 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Eastpoint Church — Sermon Archive</title>
+<title>Eastpoint Church -- Sermon Archive</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -215,12 +215,12 @@ main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
 <header>
   <div class="hdr">
     <div class="hdr-top">
-      <h1>Eastpoint Church — Sermons</h1>
+      <h1>Eastpoint Church -- Sermons</h1>
       <span class="sub" id="total"></span>
     </div>
     <div class="sw">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="search" id="q" placeholder="Search titles, scripture, topics, or anything you've preached…" oninput="render()"/>
+      <input type="search" id="q" placeholder="Search titles, scripture, topics, or anything you have preached" oninput="render()"/>
     </div>
     <div class="filters" id="filters"></div>
   </div>
@@ -230,89 +230,99 @@ main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
   <div id="results"></div>
 </main>
 <script>
-const DATA = __DATA_JSON__;
-const SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
-const allSeries = [...new Set(DATA.filter(s=>s.series).map(s=>s.series))];
-let active = "All";
-const withTranscripts = DATA.filter(s=>s.transcript).length;
+var DATA = __DATA_JSON__;
+var SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
+var allSeries = DATA.filter(function(s){return s.series;}).map(function(s){return s.series;}).filter(function(v,i,a){return a.indexOf(v)===i;});
+var active = "All";
+var withTranscripts = DATA.filter(function(s){return s.transcript;}).length;
 
-function fmt(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
-function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function hi(text,q){
-  if(!q) return esc(text);
-  const safe=q.replace(/[.*+?^$()|[\]\\]/g,"\\$&");
-  return esc(text).replace(new RegExp("("+safe+")","gi"),"<span class=hit>$1</span>");
+function fmt(d){
+  return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 }
-function excerpt(transcript,q,chars=220){
-  if(!transcript||!q) return "";
-  const lo=transcript.toLowerCase();
-  const i=lo.indexOf(q.toLowerCase());
-  if(i<0) return "";
-  const start=Math.max(0,i-80);
-  const end=Math.min(transcript.length,i+chars);
-  return (start>0?"…":"")+hi(transcript.slice(start,end).trim(),q)+(end<transcript.length?"…":"");
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function hi(text, q){
+  if(!q) return esc(text);
+  var escaped = esc(text);
+  var lower = escaped.toLowerCase();
+  var ql = q.toLowerCase();
+  var out = "";
+  var i = 0;
+  while(i < escaped.length){
+    var j = lower.indexOf(ql, i);
+    if(j < 0){ out += escaped.slice(i); break; }
+    out += escaped.slice(i, j) + "<span class=hit>" + escaped.slice(j, j+ql.length) + "</span>";
+    i = j + ql.length;
+  }
+  return out;
+}
+function excerpt(transcript, q, chars){
+  chars = chars || 220;
+  if(!transcript || !q) return "";
+  var lo = transcript.toLowerCase();
+  var i = lo.indexOf(q.toLowerCase());
+  if(i < 0) return "";
+  var start = Math.max(0, i-80);
+  var end = Math.min(transcript.length, i+chars);
+  return (start>0?"...":"")+hi(transcript.slice(start,end).trim(),q)+(end<transcript.length?"...":"");
 }
 function toggleTx(btn){
-  const box=btn.closest(".card").querySelector(".tx-full");
-  const open=box.classList.toggle("open");
-  btn.innerHTML=open
-    ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 15l-6-6-6 6"/></svg> Hide transcript'
-    : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg> Show transcript';
+  var box = btn.parentNode.parentNode.querySelector(".tx-full");
+  var open = box.classList.toggle("open");
+  btn.textContent = open ? "Hide transcript" : "Show transcript";
 }
 function buildFilters(){
-  const ordered=SERIES_ORDER.filter(s=>allSeries.includes(s));
-  const rest=allSeries.filter(s=>!SERIES_ORDER.includes(s));
-  const all=["All",...ordered,...rest];
-  document.getElementById("filters").innerHTML=all.map(s=>
-    `<button class="fb${s===active?" on":""}" onclick="setFilter('${s}')">${s}</button>`
-  ).join("");
-  document.getElementById("total").textContent=withTranscripts===DATA.length
-    ? `Full transcripts — ${DATA.length} sermons`
-    : `${DATA.length} sermons${withTranscripts?" ("+withTranscripts+" with transcripts)":""}`;
+  var ordered = SERIES_ORDER.filter(function(s){return allSeries.indexOf(s)>=0;});
+  var rest = allSeries.filter(function(s){return SERIES_ORDER.indexOf(s)<0;});
+  var all = ["All"].concat(ordered).concat(rest);
+  document.getElementById("filters").innerHTML = all.map(function(s){
+    return "<button class=\"fb"+(s===active?" on":"")+"\" onclick=\"setFilter('"+s+"')\">"+s+"</button>";
+  }).join("");
+  document.getElementById("total").textContent = withTranscripts===DATA.length
+    ? "Full transcripts -- "+DATA.length+" sermons"
+    : DATA.length+" sermons"+(withTranscripts?" ("+withTranscripts+" with transcripts)":"");
 }
-function setFilter(f){active=f;buildFilters();render()}
+function setFilter(f){ active=f; buildFilters(); render(); }
 function render(){
-  const raw=document.getElementById("q").value.trim();
-  const q=raw.toLowerCase();
-  let list=DATA.filter(s=>{
-    if(active!=="All"&&s.series!==active) return false;
+  var raw = document.getElementById("q").value.trim();
+  var q = raw.toLowerCase();
+  var list = DATA.filter(function(s){
+    if(active!=="All" && s.series!==active) return false;
     if(!q) return true;
-    return s.title.toLowerCase().includes(q)||
-           s.scripture.toLowerCase().includes(q)||
-           s.preacher.toLowerCase().includes(q)||
-           s.series.toLowerCase().includes(q)||
-           s.desc.toLowerCase().includes(q)||
-           (s.transcript&&s.transcript.toLowerCase().includes(q));
+    return s.title.toLowerCase().indexOf(q)>=0 ||
+           s.scripture.toLowerCase().indexOf(q)>=0 ||
+           s.preacher.toLowerCase().indexOf(q)>=0 ||
+           s.series.toLowerCase().indexOf(q)>=0 ||
+           s.desc.toLowerCase().indexOf(q)>=0 ||
+           (s.transcript && s.transcript.toLowerCase().indexOf(q)>=0);
   });
-  document.getElementById("meta").textContent=
-    (q||active!=="All")?`${list.length} sermon${list.length!==1?"s":""} found`:"";
+  document.getElementById("meta").textContent =
+    (q||active!=="All") ? list.length+" sermon"+(list.length!==1?"s":"")+" found" : "";
   if(!list.length){
-    document.getElementById("results").innerHTML="<div class=empty>No sermons match your search.</div>";
+    document.getElementById("results").innerHTML = "<div class=empty>No sermons match your search.</div>";
     return;
   }
-  document.getElementById("results").innerHTML=list.map(s=>{
-    const txSnip=excerpt(s.transcript,raw);
-    const txHtml=txSnip?`<div class="tx-hit">…${txSnip}…</div>`:"";
-    const badge=s.series?`<span class="sb">${esc(s.series)}</span>`:"";
-    const txBtn=s.transcript
-      ?`<button class="tb" onclick="toggleTx(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg> Show transcript</button>`
-      :"";
-    const txFull=s.transcript
-      ?`<div class="tx-full">${esc(s.transcript)}</div>`
-      :"";
-    return `<div class="card">
-  <div class="ct">${hi(s.title,raw)}</div>
-  <div class="cm"><span>${fmt(s.date)}</span><span>${esc(s.preacher)}</span>${badge}</div>
-  <div class="cd">${hi(s.desc,raw)}</div>${txHtml}${txFull}
-  <div class="cf">
-    <span class="tag">${esc(s.scripture)}</span>
-    <a class="wl" href="${s.url}" target="_blank">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
-      Watch
-    </a>
-    ${txBtn}
-  </div>
-</div>`;
+  document.getElementById("results").innerHTML = list.map(function(s){
+    var txSnip = excerpt(s.transcript, raw);
+    var txHtml = txSnip ? "<div class=\"tx-hit\">..."+txSnip+"...</div>" : "";
+    var badge = s.series ? "<span class=\"sb\">"+esc(s.series)+"</span>" : "";
+    var txBtn = s.transcript
+      ? "<button class=\"tb\" onclick=\"toggleTx(this)\">Show transcript</button>"
+      : "";
+    var txFull = s.transcript
+      ? "<div class=\"tx-full\">"+esc(s.transcript)+"</div>"
+      : "";
+    return "<div class=\"card\">"
+      +"<div class=\"ct\">"+hi(s.title,raw)+"</div>"
+      +"<div class=\"cm\"><span>"+fmt(s.date)+"</span><span>"+esc(s.preacher)+"</span>"+badge+"</div>"
+      +"<div class=\"cd\">"+hi(s.desc,raw)+"</div>"+txHtml+txFull
+      +"<div class=\"cf\">"
+      +"<span class=\"tag\">"+esc(s.scripture)+"</span>"
+      +"<a class=\"wl\" href=\""+s.url+"\" target=\"_blank\">Watch</a>"
+      +txBtn
+      +"</div>"
+      +"</div>";
   }).join("");
 }
 buildFilters();
@@ -351,7 +361,7 @@ def main():
                 existing[s["id"]] = s
         print(f"Loaded {len(existing)} cached sermons from {DATA_FILE}")
 
-    print("Fetching video list from YouTube…")
+    print("Fetching video list from YouTube...")
     channel_name, videos = get_channel_videos(youtube)
     print(f"Found {len(videos)} sermons on '{channel_name}'")
 
@@ -363,7 +373,7 @@ def main():
         else:
             print(f"  Fetching transcript: {v['title'][:60]}")
             v["transcript"] = get_transcript(v["id"])
-            print(f"    {'✓ '+str(len(v['transcript']))+' chars' if v['transcript'] else '✗ no transcript'}")
+            print(f"    {'OK '+str(len(v['transcript']))+' chars' if v['transcript'] else 'no transcript'}")
             new_count += 1
             time.sleep(0.5)
 
