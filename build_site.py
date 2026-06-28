@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
-Eastpoint Sermon Archive — Site Builder
-Runs via GitHub Actions weekly OR locally to build the transcript cache.
-
+Eastpoint Sermon Archive -- Site Builder
 Environment variables:
-  YOUTUBE_API_KEY  — YouTube Data API v3 key
-  CHANNEL_ID       — YouTube channel ID (optional, defaults to Eastpoint's)
+  YOUTUBE_API_KEY  -- YouTube Data API v3 key
+  CHANNEL_ID       -- YouTube channel ID (optional)
 """
 
 import json, os, time, sys
-from datetime import datetime
 
 try:
     from googleapiclient.discovery import build
@@ -30,27 +27,20 @@ if not API_KEY:
     raise SystemExit("YOUTUBE_API_KEY environment variable not set.")
 
 
-# ── YouTube helpers ────────────────────────────────────────────────────────────
-
 def get_channel_videos(youtube):
-    resp = youtube.channels().list(
-        part="contentDetails,snippet", id=CHANNEL_ID
-    ).execute()
+    resp = youtube.channels().list(part="contentDetails,snippet", id=CHANNEL_ID).execute()
     if not resp.get("items"):
         raise SystemExit(f"Channel not found: {CHANNEL_ID}")
-
     channel_name = resp["items"][0]["snippet"]["title"]
     uploads_id   = resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
-
     videos, page_token = [], None
     while True:
         pl = youtube.playlistItems().list(
             part="snippet", playlistId=uploads_id,
             maxResults=50, pageToken=page_token
         ).execute()
-
         for item in pl["items"]:
-            s     = item["snippet"]
+            s = item["snippet"]
             title = s["title"]
             if "|" not in title:
                 continue
@@ -58,7 +48,6 @@ def get_channel_videos(youtube):
             preacher = parts[2] if len(parts) > 2 else "Peter Frey"
             if any(x in preacher for x in ("Eastpoint", "Durham", "Easter", "Advent")):
                 preacher = "Peter Frey"
-
             videos.append({
                 "id":          s["resourceId"]["videoId"],
                 "title":       parts[0],
@@ -66,29 +55,24 @@ def get_channel_videos(youtube):
                 "preacher":    preacher,
                 "date":        s["publishedAt"][:10],
                 "description": s.get("description", "")[:400].replace("\n", " "),
-                "url":         f"https://www.youtube.com/watch?v={s['resourceId']['videoId']}",
+                "url":         "https://www.youtube.com/watch?v=" + s["resourceId"]["videoId"],
                 "transcript":  None,
             })
-
         page_token = pl.get("nextPageToken")
         if not page_token:
             break
         time.sleep(0.3)
-
     return channel_name, videos
 
 
 def get_transcript(video_id):
-    """Download transcript text for a video. Returns str or None."""
     try:
-        api        = YouTubeTranscriptApi()
-        transcript = api.fetch(video_id)
-        return " ".join(e.text for e in transcript)
+        api = YouTubeTranscriptApi()
+        return " ".join(e.text for e in api.fetch(video_id))
     except TranscriptsDisabled:
         return None
     except Exception as e:
         print(f"      transcript-api error: {e}")
-
     try:
         api = YouTubeTranscriptApi()
         tl  = api.list(video_id)
@@ -96,7 +80,6 @@ def get_transcript(video_id):
         return " ".join(e.text for e in t.fetch())
     except Exception as e:
         print(f"      auto-caption error: {e}")
-
     try:
         import subprocess, tempfile, glob, re
         with tempfile.TemporaryDirectory() as tmp:
@@ -110,7 +93,7 @@ def get_transcript(video_id):
             )
             vtt_files = glob.glob(f"{tmp}/*.vtt")
             if vtt_files:
-                raw   = open(vtt_files[0]).read()
+                raw = open(vtt_files[0]).read()
                 lines, seen = [], set()
                 for line in raw.splitlines():
                     if "-->" in line or line.startswith("WEBVTT") or not line.strip():
@@ -122,34 +105,28 @@ def get_transcript(video_id):
                 return " ".join(lines)
     except Exception as e:
         print(f"      yt-dlp error: {e}")
-
     return None
 
 
-# ── Series detection ───────────────────────────────────────────────────────────
-
 SERIES_RULES = [
-    (lambda s: s["scripture"].startswith(("John ", "John\n")) or s["scripture"] in ("John 15","John 14","John 10","John 8","John 6","John 4") or s["scripture"].startswith("1 John"), "John"),
-    (lambda s: "Colossians" in s["scripture"],  "Colossians"),
-    (lambda s: "Isaiah" in s["scripture"],      "Isaiah"),
-    (lambda s: "Psalm" in s["scripture"],       "Psalms"),
-    (lambda s: "Advent" in s["title"] or "Advent" in s["description"], "Advent"),
-    (lambda s: "Together" in s["title"],        "Together"),
-    (lambda s: any(x in s["title"] for x in ("Pray", "Prayer", "Stillness", "Hearing From God")), "Prayer"),
-    (lambda s: any(x in s["title"] for x in ("Resurrection", "Palm Sunday", "Pentecost")), "Special"),
+    (lambda s: s["scripture"].startswith("John ") or s["scripture"].startswith("1 John"), "John"),
+    (lambda s: "Colossians" in s["scripture"], "Colossians"),
+    (lambda s: "Isaiah"     in s["scripture"], "Isaiah"),
+    (lambda s: "Psalm"      in s["scripture"], "Psalms"),
+    (lambda s: "Advent"  in s["title"] or "Advent"  in s["description"], "Advent"),
+    (lambda s: "Together" in s["title"], "Together"),
+    (lambda s: any(x in s["title"] for x in ("Pray","Prayer","Stillness","Hearing From God")), "Prayer"),
+    (lambda s: any(x in s["title"] for x in ("Resurrection","Palm Sunday","Pentecost")), "Special"),
 ]
 
 def infer_series(s):
     for rule, name in SERIES_RULES:
         try:
-            if rule(s):
-                return name
+            if rule(s): return name
         except Exception:
             pass
     return ""
 
-
-# ── HTML generation ────────────────────────────────────────────────────────────
 
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
@@ -157,7 +134,7 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Eastpoint Church -- Sermon Archive</title>
+<title>Eastpoint Church - Sermon Archive</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -166,14 +143,12 @@ HTML_TEMPLATE = """\
   --accent:#185fa5;--accent-bg:#e6f1fb;--accent-text:#0c447c;
   --tag-bg:#eeecea;--radius:10px;
 }
-@media(prefers-color-scheme:dark){
-  :root{
-    --bg:#18181a;--surface:#232325;--border:#333336;
-    --text:#e8e6e1;--muted:#8a8884;
-    --accent:#4d9de0;--accent-bg:#0c2540;--accent-text:#7ec0f5;
-    --tag-bg:#2a2a2c;
-  }
-}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#18181a;--surface:#232325;--border:#333336;
+  --text:#e8e6e1;--muted:#8a8884;
+  --accent:#4d9de0;--accent-bg:#0c2540;--accent-text:#7ec0f5;
+  --tag-bg:#2a2a2c;
+}}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:1.25rem 1.5rem;position:sticky;top:0;z-index:10}
 .hdr{max-width:820px;margin:0 auto}
@@ -186,22 +161,21 @@ input[type=search]{width:100%;padding:.5rem .75rem .5rem 2.2rem;border:1px solid
 input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(24,95,165,.12)}
 input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .filters{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}
-.fb{font-size:.73rem;padding:.22rem .65rem;border:1px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer;transition:all .15s}
+.fb{font-size:.73rem;padding:.22rem .65rem;border:1px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer}
 .fb:hover{border-color:var(--accent);color:var(--accent)}
 .fb.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text);font-weight:500}
 main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
 .meta{font-size:.78rem;color:var(--muted);margin-bottom:.9rem}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.2rem;margin-bottom:.7rem}
-.card:hover{border-color:#bbb9b3}
 .ct{font-size:.95rem;font-weight:600;line-height:1.4;margin-bottom:.2rem}
-.cm{font-size:.75rem;color:var(--muted);margin-bottom:.55rem;display:flex;gap:.65rem;flex-wrap:wrap;align-items:center}
+.cm{font-size:.75rem;color:var(--muted);margin-bottom:.55rem;display:flex;gap:.65rem;flex-wrap:wrap}
 .cd{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:.7rem}
 .cf{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}
-.tag{font-size:.7rem;background:var(--tag-bg);color:var(--muted);border-radius:4px;padding:.12rem .45rem;white-space:nowrap}
+.tag{font-size:.7rem;background:var(--tag-bg);color:var(--muted);border-radius:4px;padding:.12rem .45rem}
 .sb{font-size:.68rem;font-weight:500;border-radius:3px;padding:.1rem .4rem;background:var(--accent-bg);color:var(--accent-text)}
-.wl{font-size:.76rem;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:.3rem}
+.wl{font-size:.76rem;color:var(--accent);text-decoration:none}
 .wl:hover{text-decoration:underline}
-.tb{font-size:.76rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:.25rem;margin-left:auto}
+.tb{font-size:.76rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-left:auto}
 .tb:hover{text-decoration:underline}
 .hit{background:#fff3a0;color:#4a3800;border-radius:2px;padding:0 1px}
 .tx-hit{font-size:.78rem;color:var(--muted);line-height:1.6;margin-top:.4rem;margin-bottom:.3rem;border-left:2px solid var(--accent);padding-left:.5rem}
@@ -215,7 +189,7 @@ main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
 <header>
   <div class="hdr">
     <div class="hdr-top">
-      <h1>Eastpoint Church -- Sermons</h1>
+      <h1>Eastpoint Church - Sermons</h1>
       <span class="sub" id="total"></span>
     </div>
     <div class="sw">
@@ -232,99 +206,129 @@ main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
 <script>
 var DATA = __DATA_JSON__;
 var SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
-var allSeries = DATA.filter(function(s){return s.series;}).map(function(s){return s.series;}).filter(function(v,i,a){return a.indexOf(v)===i;});
+var allSeries = [];
+for (var i = 0; i < DATA.length; i++) {
+  if (DATA[i].series && allSeries.indexOf(DATA[i].series) < 0) {
+    allSeries.push(DATA[i].series);
+  }
+}
 var active = "All";
-var withTranscripts = DATA.filter(function(s){return s.transcript;}).length;
+var withTranscripts = 0;
+for (var i = 0; i < DATA.length; i++) { if (DATA[i].transcript) withTranscripts++; }
 
-function fmt(d){
-  return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+function fmt(d) {
+  return new Date(d + "T12:00:00").toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"});
 }
-function esc(s){
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
-function hi(text, q){
-  if(!q) return esc(text);
+
+function hi(text, q) {
+  if (!q) { return esc(text); }
   var escaped = esc(text);
   var lower = escaped.toLowerCase();
   var ql = q.toLowerCase();
   var out = "";
   var i = 0;
-  while(i < escaped.length){
+  while (i < escaped.length) {
     var j = lower.indexOf(ql, i);
-    if(j < 0){ out += escaped.slice(i); break; }
-    out += escaped.slice(i, j) + "<span class=hit>" + escaped.slice(j, j+ql.length) + "</span>";
+    if (j < 0) { out += escaped.slice(i); break; }
+    out += escaped.slice(i, j) + "<span class=hit>" + escaped.slice(j, j + ql.length) + "</span>";
     i = j + ql.length;
   }
   return out;
 }
-function excerpt(transcript, q, chars){
-  chars = chars || 220;
-  if(!transcript || !q) return "";
+
+function excerpt(transcript, q) {
+  if (!transcript || !q) { return ""; }
   var lo = transcript.toLowerCase();
-  var i = lo.indexOf(q.toLowerCase());
-  if(i < 0) return "";
-  var start = Math.max(0, i-80);
-  var end = Math.min(transcript.length, i+chars);
-  return (start>0?"...":"")+hi(transcript.slice(start,end).trim(),q)+(end<transcript.length?"...":"");
+  var idx = lo.indexOf(q.toLowerCase());
+  if (idx < 0) { return ""; }
+  var start = Math.max(0, idx - 80);
+  var end = Math.min(transcript.length, idx + 220);
+  return (start > 0 ? "..." : "") + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? "..." : "");
 }
-function toggleTx(btn){
-  var box = btn.parentNode.parentNode.querySelector(".tx-full");
-  var open = box.classList.toggle("open");
-  btn.textContent = open ? "Hide transcript" : "Show transcript";
+
+function toggleTx(btn) {
+  var card = btn.parentNode.parentNode;
+  var box = card.querySelector(".tx-full");
+  var isOpen = box.classList.toggle("open");
+  btn.textContent = isOpen ? "Hide transcript" : "Show transcript";
 }
-function buildFilters(){
-  var ordered = SERIES_ORDER.filter(function(s){return allSeries.indexOf(s)>=0;});
-  var rest = allSeries.filter(function(s){return SERIES_ORDER.indexOf(s)<0;});
+
+function buildFilters() {
+  var ordered = [];
+  for (var i = 0; i < SERIES_ORDER.length; i++) {
+    if (allSeries.indexOf(SERIES_ORDER[i]) >= 0) { ordered.push(SERIES_ORDER[i]); }
+  }
+  var rest = [];
+  for (var i = 0; i < allSeries.length; i++) {
+    if (SERIES_ORDER.indexOf(allSeries[i]) < 0) { rest.push(allSeries[i]); }
+  }
   var all = ["All"].concat(ordered).concat(rest);
-  document.getElementById("filters").innerHTML = all.map(function(s){
-    return "<button class=\"fb"+(s===active?" on":"")+"\" onclick=\"setFilter('"+s+"')\">"+s+"</button>";
-  }).join("");
-  document.getElementById("total").textContent = withTranscripts===DATA.length
-    ? "Full transcripts -- "+DATA.length+" sermons"
-    : DATA.length+" sermons"+(withTranscripts?" ("+withTranscripts+" with transcripts)":"");
+  var btns = "";
+  for (var i = 0; i < all.length; i++) {
+    var cls = all[i] === active ? "fb on" : "fb";
+    btns += "<button class=\"" + cls + "\" onclick=\"setFilter('" + all[i] + "')\">" + all[i] + "</button>";
+  }
+  document.getElementById("filters").innerHTML = btns;
+  document.getElementById("total").textContent = withTranscripts === DATA.length
+    ? "Full transcripts - " + DATA.length + " sermons"
+    : DATA.length + " sermons" + (withTranscripts ? " (" + withTranscripts + " with transcripts)" : "");
 }
-function setFilter(f){ active=f; buildFilters(); render(); }
-function render(){
+
+function setFilter(f) { active = f; buildFilters(); render(); }
+
+function render() {
   var raw = document.getElementById("q").value.trim();
   var q = raw.toLowerCase();
-  var list = DATA.filter(function(s){
-    if(active!=="All" && s.series!==active) return false;
-    if(!q) return true;
-    return s.title.toLowerCase().indexOf(q)>=0 ||
-           s.scripture.toLowerCase().indexOf(q)>=0 ||
-           s.preacher.toLowerCase().indexOf(q)>=0 ||
-           s.series.toLowerCase().indexOf(q)>=0 ||
-           s.desc.toLowerCase().indexOf(q)>=0 ||
-           (s.transcript && s.transcript.toLowerCase().indexOf(q)>=0);
-  });
+  var list = [];
+  for (var i = 0; i < DATA.length; i++) {
+    var s = DATA[i];
+    if (active !== "All" && s.series !== active) { continue; }
+    if (!q) { list.push(s); continue; }
+    if (s.title.toLowerCase().indexOf(q) >= 0 ||
+        s.scripture.toLowerCase().indexOf(q) >= 0 ||
+        s.preacher.toLowerCase().indexOf(q) >= 0 ||
+        s.series.toLowerCase().indexOf(q) >= 0 ||
+        s.desc.toLowerCase().indexOf(q) >= 0 ||
+        (s.transcript && s.transcript.toLowerCase().indexOf(q) >= 0)) {
+      list.push(s);
+    }
+  }
   document.getElementById("meta").textContent =
-    (q||active!=="All") ? list.length+" sermon"+(list.length!==1?"s":"")+" found" : "";
-  if(!list.length){
+    (q || active !== "All") ? list.length + " sermon" + (list.length !== 1 ? "s" : "") + " found" : "";
+  if (!list.length) {
     document.getElementById("results").innerHTML = "<div class=empty>No sermons match your search.</div>";
     return;
   }
-  document.getElementById("results").innerHTML = list.map(function(s){
+  var html = "";
+  for (var i = 0; i < list.length; i++) {
+    var s = list[i];
     var txSnip = excerpt(s.transcript, raw);
-    var txHtml = txSnip ? "<div class=\"tx-hit\">..."+txSnip+"...</div>" : "";
-    var badge = s.series ? "<span class=\"sb\">"+esc(s.series)+"</span>" : "";
-    var txBtn = s.transcript
-      ? "<button class=\"tb\" onclick=\"toggleTx(this)\">Show transcript</button>"
-      : "";
-    var txFull = s.transcript
-      ? "<div class=\"tx-full\">"+esc(s.transcript)+"</div>"
-      : "";
-    return "<div class=\"card\">"
-      +"<div class=\"ct\">"+hi(s.title,raw)+"</div>"
-      +"<div class=\"cm\"><span>"+fmt(s.date)+"</span><span>"+esc(s.preacher)+"</span>"+badge+"</div>"
-      +"<div class=\"cd\">"+hi(s.desc,raw)+"</div>"+txHtml+txFull
-      +"<div class=\"cf\">"
-      +"<span class=\"tag\">"+esc(s.scripture)+"</span>"
-      +"<a class=\"wl\" href=\""+s.url+"\" target=\"_blank\">Watch</a>"
-      +txBtn
-      +"</div>"
-      +"</div>";
-  }).join("");
+    var txHtml = txSnip ? "<div class=\"tx-hit\">..." + txSnip + "...</div>" : "";
+    var badge = s.series ? "<span class=\"sb\">" + esc(s.series) + "</span>" : "";
+    var txBtn = s.transcript ? "<button class=\"tb\" onclick=\"toggleTx(this)\">Show transcript</button>" : "";
+    var txFull = s.transcript ? "<div class=\"tx-full\">" + esc(s.transcript) + "</div>" : "";
+    html += "<div class=\"card\">";
+    html += "<div class=\"ct\">" + hi(s.title, raw) + "</div>";
+    html += "<div class=\"cm\"><span>" + fmt(s.date) + "</span><span>" + esc(s.preacher) + "</span>" + badge + "</div>";
+    html += "<div class=\"cd\">" + hi(s.desc, raw) + "</div>";
+    html += txHtml + txFull;
+    html += "<div class=\"cf\">";
+    html += "<span class=\"tag\">" + esc(s.scripture) + "</span>";
+    html += "<a class=\"wl\" href=\"" + s.url + "\" target=\"_blank\">Watch</a>";
+    html += txBtn;
+    html += "</div></div>";
+  }
+  document.getElementById("results").innerHTML = html;
 }
+
 buildFilters();
 render();
 </script>
@@ -349,8 +353,6 @@ def build_html(channel_name, sermons):
     return HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
-
 def main():
     youtube = build("youtube", "v3", developerKey=API_KEY)
 
@@ -373,7 +375,8 @@ def main():
         else:
             print(f"  Fetching transcript: {v['title'][:60]}")
             v["transcript"] = get_transcript(v["id"])
-            print(f"    {'OK '+str(len(v['transcript']))+' chars' if v['transcript'] else 'no transcript'}")
+            status = "OK " + str(len(v["transcript"])) + " chars" if v["transcript"] else "no transcript"
+            print(f"    {status}")
             new_count += 1
             time.sleep(0.5)
 
