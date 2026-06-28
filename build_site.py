@@ -89,6 +89,7 @@ def get_channel_videos(youtube):
 
 def get_transcript(video_id):
     """Download transcript text for a video. Returns str or None."""
+    # Try youtube-transcript-api first
     try:
         entries = YouTubeTranscriptApi.get_transcript(video_id)
         return " ".join(e["text"] for e in entries)
@@ -96,16 +97,46 @@ def get_transcript(video_id):
         return None
     except NoTranscriptFound:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"      transcript-api error: {e}")
 
-    # Fall back to auto-generated captions
+    # Try auto-generated captions via transcript-api
     try:
         tl = YouTubeTranscriptApi.list_transcripts(video_id)
         t  = tl.find_generated_transcript(["en"])
         return " ".join(e["text"] for e in t.fetch())
-    except Exception:
-        return None
+    except Exception as e:
+        print(f"      auto-caption error: {e}")
+
+    # Fall back to yt-dlp (handles IP restrictions better)
+    try:
+        import subprocess, tempfile, glob, re
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(
+                ["yt-dlp", "--skip-download", "--write-auto-sub",
+                 "--sub-lang", "en", "--sub-format", "vtt",
+                 "-o", f"{tmp}/%(id)s",
+                 f"https://www.youtube.com/watch?v={video_id}"],
+                capture_output=True, text=True, timeout=60
+            )
+            vtt_files = glob.glob(f"{tmp}/*.vtt")
+            if vtt_files:
+                raw = open(vtt_files[0]).read()
+                # Strip VTT timestamps and deduplicate lines
+                lines = []
+                seen = set()
+                for line in raw.splitlines():
+                    if "-->" in line or line.startswith("WEBVTT") or not line.strip():
+                        continue
+                    clean = re.sub(r"<[^>]+>", "", line).strip()
+                    if clean and clean not in seen:
+                        seen.add(clean)
+                        lines.append(clean)
+                return " ".join(lines)
+    except Exception as e:
+        print(f"      yt-dlp error: {e}")
+
+    return None
 
 
 # ── Series detection ───────────────────────────────────────────────────────────
@@ -209,7 +240,7 @@ main{{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}}
   <div id="results"></div>
 </main>
 <script>
-const DATA = {data_json};
+const DATA = __DATA_JSON__;
 
 const SERIES_ORDER = ["John","Colossians","Isaiah","Advent","Prayer","Together","Psalms","Special"];
 const allSeries = [...new Set(DATA.filter(s=>s.series).map(s=>s.series))];
@@ -325,12 +356,8 @@ def build_html(channel_name, sermons):
             "url":        s["url"],
         })
     data_json = json.dumps(js_data, ensure_ascii=False, separators=(",", ":"))
-    generated = datetime.now().strftime("%B %d, %Y")
-    return HTML_TEMPLATE.format(
-        channel_name=channel_name,
-        generated=generated,
-        data_json=data_json,
-    )
+    # Use simple replace instead of .format() so JS curly braces aren't treated as placeholders
+    return HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
