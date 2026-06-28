@@ -356,8 +356,10 @@ def build_html(channel_name, sermons):
             "url":        s["url"],
         })
     data_json = json.dumps(js_data, ensure_ascii=False, separators=(",", ":"))
-    # Use simple replace instead of .format() so JS curly braces aren't treated as placeholders
-    return HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
+    # Substitute data, then unescape doubled braces left from the original .format() design
+    html = HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
+    html = html.replace("{{", "{").replace("}}", "}")
+    return html
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
