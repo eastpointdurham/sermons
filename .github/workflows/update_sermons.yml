@@ -2,7 +2,7 @@ name: Update Sermon Archive
 
 on:
   schedule:
-    - cron: '0 14 * * 1'   # Every Monday at 2pm UTC (10am ET)
+    - cron: 'cron: '0 * * * *'   # Every Monday at 2pm UTC (10am ET)
   workflow_dispatch:        # Also allows manual run from GitHub Actions tab
 
 permissions:
