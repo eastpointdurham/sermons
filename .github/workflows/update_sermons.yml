@@ -2,11 +2,11 @@ name: Update Sermon Archive
 
 on:
   schedule:
-    - cron: '0 * * * *'    # Every hour
-  workflow_dispatch:        # Also allows manual run from GitHub Actions tab
+    - cron: '0 * * * *'  # Every hour
+  workflow_dispatch:      # Also allows manual run from GitHub Actions tab
 
 permissions:
-  contents: write           # Needed to commit index.html and sermons.json
+  contents: write  # Needed to commit index.html and sermons.json
 
 jobs:
   update:
@@ -27,6 +27,7 @@ jobs:
       - name: Build sermon archive
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CHANNEL_ID: UCu5frCUoNL0rOGCAClqHBFA
         run: python build_site.py
 
@@ -41,7 +42,7 @@ jobs:
 
       - name: Commit updated site
         run: |
-          git config --global user.name  "GitHub Actions"
+          git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add index.html sermons.json
           git diff --staged --quiet && echo "No changes." || (
