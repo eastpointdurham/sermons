@@ -136,67 +136,83 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Eastpoint Church - Sermon Archive</title>
+<title>Sermons — Eastpoint Church Durham</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f5f4f1;--surface:#fff;--border:#e2e0da;
-  --text:#1a1a18;--muted:#6b6965;
-  --accent:#185fa5;--accent-bg:#e6f1fb;--accent-text:#0c447c;
-  --tag-bg:#eeecea;--radius:10px;
+  --bg:#ffffff;--surface:#ffffff;--border:#e5e7e3;
+  --text:#1a1a1a;--muted:#737a6e;
+  --accent:#6b7c63;--accent-bg:#eef2eb;--accent-text:#4a5c42;
+  --tag-bg:#f0f3ee;--radius:14px;
+  --header-bg:#ffffff;
 }
 @media(prefers-color-scheme:dark){:root{
-  --bg:#18181a;--surface:#232325;--border:#333336;
-  --text:#e8e6e1;--muted:#8a8884;
-  --accent:#4d9de0;--accent-bg:#0c2540;--accent-text:#7ec0f5;
-  --tag-bg:#2a2a2c;
+  --bg:#141714;--surface:#1e221d;--border:#2e332c;
+  --text:#e8ebe5;--muted:#8a9284;
+  --accent:#8aaa7f;--accent-bg:#1e2b1a;--accent-text:#a8c49c;
+  --tag-bg:#242922;--header-bg:#111311;
 }}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:1.25rem 1.5rem;position:sticky;top:0;z-index:10}
-.hdr{max-width:820px;margin:0 auto}
-.hdr-top{display:flex;align-items:baseline;gap:1rem;margin-bottom:.9rem;flex-wrap:wrap}
-h1{font-size:1rem;font-weight:600}
-.sub{font-size:.78rem;color:var(--muted)}
-.sw{position:relative}
-.sw svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-input[type=search]{width:100%;padding:.5rem .75rem .5rem 2.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:.9rem;outline:none;appearance:none}
-input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(24,95,165,.12)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--header-bg);border-bottom:1px solid var(--border);padding:1rem 1.5rem 0;position:sticky;top:0;z-index:10}
+.hdr{max-width:860px;margin:0 auto}
+.hdr-brand{display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem}
+.hdr-brand svg{flex-shrink:0;opacity:.9}
+.hdr-brand-text h1{font-size:1.05rem;font-weight:700;letter-spacing:-.01em;line-height:1.1}
+.hdr-brand-text p{font-size:.7rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:.1rem}
+.sw{position:relative;margin-bottom:.75rem}
+.sw svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+input[type=search]{width:100%;padding:.6rem 1rem .6rem 2.5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:.88rem;outline:none;appearance:none;font-family:inherit}
+input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(107,124,99,.13)}
 input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
-.filters{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.7rem}
-.fb{font-size:.73rem;padding:.22rem .65rem;border:1px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer}
+input[type=search]::placeholder{color:var(--muted)}
+.filters{display:flex;gap:.35rem;flex-wrap:wrap;padding-bottom:.75rem}
+.fb{font-size:.71rem;padding:.25rem .7rem;border:1.5px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer;font-family:inherit;letter-spacing:.01em;transition:border-color .15s,color .15s}
 .fb:hover{border-color:var(--accent);color:var(--accent)}
-.fb.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text);font-weight:500}
-main{max-width:820px;margin:0 auto;padding:1.25rem 1.5rem}
-.meta{font-size:.78rem;color:var(--muted);margin-bottom:.9rem}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.2rem;margin-bottom:.7rem}
-.ct{font-size:.95rem;font-weight:600;line-height:1.4;margin-bottom:.2rem}
-.cm{font-size:.75rem;color:var(--muted);margin-bottom:.55rem;display:flex;gap:.65rem;flex-wrap:wrap}
-.cd{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:.7rem}
-.cf{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap}
-.tag{font-size:.7rem;background:var(--tag-bg);color:var(--muted);border-radius:4px;padding:.12rem .45rem}
-.sb{font-size:.68rem;font-weight:500;border-radius:3px;padding:.1rem .4rem;background:var(--accent-bg);color:var(--accent-text)}
-.wl{font-size:.76rem;color:var(--accent);text-decoration:none}
+.fb.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text);font-weight:600}
+main{max-width:860px;margin:0 auto;padding:1.25rem 1.5rem}
+.meta{font-size:.75rem;color:var(--muted);margin-bottom:.85rem;letter-spacing:.01em}
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem;margin-bottom:.65rem;transition:border-color .15s}
+.card:hover{border-color:var(--accent)}
+.ct{font-size:.98rem;font-weight:700;line-height:1.35;margin-bottom:.25rem;letter-spacing:-.01em}
+.cm{font-size:.73rem;color:var(--muted);margin-bottom:.5rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.cm-dot{width:3px;height:3px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.cd{font-size:.81rem;color:var(--muted);line-height:1.65;margin-bottom:.7rem}
+.cf{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.tag{font-size:.68rem;background:var(--tag-bg);color:var(--muted);border-radius:6px;padding:.15rem .5rem;font-style:italic}
+.sb{font-size:.66rem;font-weight:600;border-radius:6px;padding:.15rem .5rem;background:var(--accent-bg);color:var(--accent-text);text-transform:uppercase;letter-spacing:.04em}
+.wl{font-size:.74rem;color:var(--accent);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:.3rem}
 .wl:hover{text-decoration:underline}
-.tb{font-size:.76rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-left:auto}
+.tb{font-size:.74rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-left:auto;font-family:inherit;font-weight:600}
 .tb:hover{text-decoration:underline}
-.hit{background:#fff3a0;color:#4a3800;border-radius:2px;padding:0 1px}
-.tx-hit{font-size:.78rem;color:var(--muted);line-height:1.6;margin-top:.4rem;margin-bottom:.3rem;border-left:2px solid var(--accent);padding-left:.5rem}
-.tx-full{display:none;margin-top:.75rem;padding:.75rem;background:var(--bg);border-radius:6px;border:1px solid var(--border);font-size:.78rem;line-height:1.8;color:var(--text);white-space:pre-wrap;max-height:400px;overflow-y:auto}
+.hit{background:rgba(107,124,99,.18);color:var(--accent-text);border-radius:2px;padding:0 2px}
+.tx-hit{font-size:.77rem;color:var(--muted);line-height:1.65;margin-top:.4rem;margin-bottom:.3rem;border-left:2.5px solid var(--accent);padding-left:.55rem}
+.tx-full{display:none;margin-top:.8rem;padding:.85rem;background:var(--tag-bg);border-radius:10px;border:1px solid var(--border);font-size:.77rem;line-height:1.85;color:var(--text);white-space:pre-wrap;max-height:420px;overflow-y:auto}
 .tx-full.open{display:block}
-@media(prefers-color-scheme:dark){.hit{background:#4a3800;color:#ffe066}}
-.empty{text-align:center;padding:3rem;color:var(--muted);font-size:.9rem}
+.empty{text-align:center;padding:3.5rem;color:var(--muted);font-size:.88rem}
 </style>
 </head>
 <body>
 <header>
   <div class="hdr">
-    <div class="hdr-top">
-      <h1>Eastpoint Church - Sermons</h1>
-      <span class="sub" id="total"></span>
+    <div class="hdr-brand">
+      <svg width="40" height="28" viewBox="0 0 100 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="50" y1="0" x2="50" y2="14" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+        <line x1="24" y1="9" x2="31" y2="21" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+        <line x1="76" y1="9" x2="69" y2="21" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+        <line x1="7"  y1="30" x2="20" y2="36" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+        <line x1="93" y1="30" x2="80" y2="36" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+        <path d="M18 62 A32 32 0 0 1 82 62" stroke="#6b7c63" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <line x1="5" y1="64" x2="95" y2="64" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <div class="hdr-brand-text">
+        <h1>Eastpoint Church</h1>
+        <p>Sermon Archive</p>
+      </div>
+      <span style="margin-left:auto;font-size:.73rem;color:var(--muted)" id="total"></span>
     </div>
     <div class="sw">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="search" id="q" placeholder="Search titles, scripture, topics, or anything you have preached" oninput="render()"/>
+      <input type="search" id="q" placeholder="Search titles, scripture, series, or transcript text…" oninput="render()"/>
     </div>
     <div class="filters" id="filters"></div>
   </div>
@@ -322,7 +338,7 @@ function render() {
     var txFull = s.transcript ? '<div class="tx-full">' + esc(s.transcript) + '</div>' : '';
     html += '<div class="card">';
     html += '<div class="ct">' + hi(s.title, raw) + '</div>';
-    html += '<div class="cm"><span>' + fmt(s.date) + '</span><span>' + esc(s.preacher) + '</span>' + badge + '</div>';
+    html += '<div class="cm"><span>' + fmt(s.date) + '</span><span class="cm-dot"></span><span>' + esc(s.preacher) + '</span>' + (badge ? '<span class="cm-dot"></span>' + badge : '') + '</div>';
     html += '<div class="cd">' + hi(s.desc, raw) + '</div>';
     html += txHtml + txFull;
     html += '<div class="cf">';
@@ -387,6 +403,15 @@ def main():
 
     with_tx = sum(1 for v in videos if v["transcript"])
     print(f"\nFetched {new_count} new | {with_tx}/{len(videos)} total with transcripts")
+
+    # Track truly new sermons (not in previous sermons.json) for Drive doc creation
+    new_sermons = [v for v in videos if v["id"] not in existing]
+    if new_sermons:
+        with open("new_sermons.json", "w", encoding="utf-8") as f:
+            json.dump(new_sermons, f, indent=2, ensure_ascii=False)
+        print(f"Wrote {len(new_sermons)} new sermon(s) to new_sermons.json")
+    elif os.path.exists("new_sermons.json"):
+        os.remove("new_sermons.json")
 
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(videos, f, indent=2, ensure_ascii=False)
