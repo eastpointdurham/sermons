@@ -2,11 +2,11 @@ name: Update Sermon Archive
 
 on:
   schedule:
-    - cron: 'cron: '0 * * * *'   # Every Monday at 2pm UTC (10am ET)
+    - cron: '0 * * * *'    # Every hour
   workflow_dispatch:        # Also allows manual run from GitHub Actions tab
 
 permissions:
-  contents: write           # Needed to commit index.html back to the repo
+  contents: write           # Needed to commit index.html and sermons.json
 
 jobs:
   update:
@@ -29,6 +29,15 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           CHANNEL_ID: UCu5frCUoNL0rOGCAClqHBFA
         run: python build_site.py
+
+      - name: Create Drive docs for new sermons
+        if: hashFiles('new_sermons.json') != ''
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python create_drive_docs.py
 
       - name: Commit updated site
         run: |
