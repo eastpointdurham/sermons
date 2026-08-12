@@ -100,6 +100,49 @@ def get_transcript(video_id):
     return None
 
 
+def polish_transcript(raw_text):
+    """Use Claude Haiku to clean up a raw auto-generated transcript into readable prose."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key or not raw_text:
+        return raw_text
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        # Split into ~2500-word chunks so output stays within model limits
+        words = raw_text.split()
+        chunk_size = 2500
+        word_chunks = [words[i:i + chunk_size] for i in range(0, len(words), chunk_size)]
+
+        polished = []
+        for chunk_words in word_chunks:
+            chunk = " ".join(chunk_words)
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": (
+                    "Clean up this auto-generated sermon transcript segment into polished, readable prose.\n\n"
+                    "Rules:\n"
+                    "- Add proper punctuation and capitalization\n"
+                    "- Organize into natural paragraphs (every 4-8 sentences)\n"
+                    "- Remove filler words: um, uh, you know, kind of, sort of, like, right, okay so\n"
+                    "- Remove false starts and immediate repetitions\n"
+                    "- Keep ALL theological content and ideas intact — do not summarize or cut\n"
+                    "- Preserve the preacher's natural voice and tone\n"
+                    "- Return only the cleaned text with no preamble or commentary\n\n"
+                    f"TRANSCRIPT:\n{chunk}"
+                )}]
+            )
+            polished.append(msg.content[0].text.strip())
+
+        return "\n\n".join(polished)
+
+    except Exception as e:
+        print(f"      polish error: {e}")
+        return raw_text
+
+
 SERIES_RULES = [
     (lambda s: s["scripture"].startswith("John ") or s["scripture"].startswith("1 John"), "John"),
     (lambda s: "Colossians" in s["scripture"], "Colossians"),
@@ -403,12 +446,29 @@ def main():
     new_count = 0
     for v in videos:
         cached = existing.get(v["id"])
-        if cached and cached.get("transcript"):
+        if cached and cached.get("transcript") and cached.get("transcript_polished"):
+            # Already fetched and polished — use as-is
             v["transcript"] = cached["transcript"]
+            v["transcript_polished"] = True
+        elif cached and cached.get("transcript"):
+            # Has raw transcript but not yet polished — polish it once
+            print(f"  Polishing transcript: {v['title'][:60]}")
+            v["transcript"] = polish_transcript(cached["transcript"])
+            v["transcript_polished"] = True
+            new_count += 1
+            time.sleep(0.3)
         else:
+            # Need to fetch raw, then polish
             print(f"  Fetching transcript: {v['title'][:60]}")
-            v["transcript"] = get_transcript(v["id"])
-            status = "OK " + str(len(v["transcript"])) + " chars" if v["transcript"] else "no transcript"
+            raw = get_transcript(v["id"])
+            if raw:
+                print(f"    Polishing ({len(raw)} chars raw)...")
+                v["transcript"] = polish_transcript(raw)
+                v["transcript_polished"] = True
+            else:
+                v["transcript"] = None
+                v["transcript_polished"] = False
+            status = "OK " + str(len(v["transcript"])) + " chars polished" if v["transcript"] else "no transcript"
             print(f"    {status}")
             new_count += 1
             time.sleep(0.5)
