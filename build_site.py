@@ -67,7 +67,7 @@ def get_transcript(video_id):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(
                 [sys.executable, "-m", "yt_dlp",
-                 "--skip-download", "--write-auto-sub",
+                 "--skip-download", "--write-sub", "--write-auto-sub",
                  "--sub-lang", "en", "--sub-format", "vtt",
                  "-o", f"{tmp}/%(id)s",
                  f"https://www.youtube.com/watch?v={video_id}"],
@@ -226,7 +226,7 @@ main{max-width:780px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
 .cf{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .tag{font-size:.68rem;background:var(--tag-bg);color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:.18rem .55rem;font-style:italic}
 .sb{font-size:.63rem;font-weight:600;border-radius:6px;padding:.18rem .55rem;background:var(--accent);color:#fff;text-transform:uppercase;letter-spacing:.05em}
-.wl{font-size:.75rem;color:var(--accent);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:.3rem;border:1.5px solid var(--line);border-radius:8px;padding:.22rem .6rem;transition:border-color .15s,background .15s}
+.wl{font-size:.75rem;color:var(--accent);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:.3rem;border:1.5px solid var(--line);border-radius:8px;padding:.22rem .6rem;transition:border-color .15s,background0.15s}
 .wl:hover{border-color:var(--accent);background:var(--tag-bg)}
 .tb{font-size:.72rem;color:var(--accent);background:none;border:1.5px solid var(--line);border-radius:8px;padding:.22rem .6rem;cursor:pointer;font-family:inherit;font-weight:600;margin-left:auto;transition:border-color .15s,background .15s}
 .tb:hover{border-color:var(--accent);background:var(--tag-bg)}
@@ -446,8 +446,8 @@ def main():
     new_count = 0
     for v in videos:
         cached = existing.get(v["id"])
-        if cached and cached.get("transcript") and cached.get("transcript_polished"):
-            # Already fetched and polished — use as-is
+        if cached and cached.get("transcript") and cached.get("transcript_polished") and "\n\n" in cached.get("transcript", ""):
+            # Already fetched and properly polished (has paragraph breaks) — use as-is
             v["transcript"] = cached["transcript"]
             v["transcript_polished"] = True
         elif cached and cached.get("transcript"):
