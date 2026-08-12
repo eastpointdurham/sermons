@@ -13,11 +13,6 @@ try:
 except ImportError:
     raise SystemExit("Run: pip3 install google-api-python-client")
 
-try:
-    from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
-except ImportError:
-    raise SystemExit("Run: pip3 install youtube-transcript-api")
-
 
 API_KEY    = os.environ.get("YOUTUBE_API_KEY", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "UCu5frCUoNL0rOGCAClqHBFA")
@@ -66,20 +61,7 @@ def get_channel_videos(youtube):
 
 
 def get_transcript(video_id):
-    try:
-        api = YouTubeTranscriptApi()
-        return " ".join(e.text for e in api.fetch(video_id))
-    except TranscriptsDisabled:
-        return None
-    except Exception as e:
-        print(f"      transcript-api error: {e}")
-    try:
-        api = YouTubeTranscriptApi()
-        tl  = api.list(video_id)
-        t   = tl.find_generated_transcript(["en"])
-        return " ".join(e.text for e in t.fetch())
-    except Exception as e:
-        print(f"      auto-caption error: {e}")
+    # yt-dlp FIRST — works from GitHub Actions IPs, handles YouTube anti-bot
     try:
         import subprocess, tempfile, glob, re
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,9 +84,19 @@ def get_transcript(video_id):
                     if clean and clean not in seen:
                         seen.add(clean)
                         lines.append(clean)
-                return " ".join(lines)
+                if lines:
+                    return " ".join(lines)
     except Exception as e:
         print(f"      yt-dlp error: {e}")
+
+    # Fallback: youtube_transcript_api
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled
+        api = YouTubeTranscriptApi()
+        return " ".join(e.text for e in api.fetch(video_id))
+    except Exception as e:
+        print(f"      transcript-api error: {e}")
+
     return None
 
 
@@ -128,8 +120,7 @@ def infer_series(s):
     return ""
 
 
-# NOTE: This template uses only single-quoted JS strings to avoid Python escape issues.
-# HTML attributes inside JS strings use double quotes (safe inside single-quoted JS strings).
+# NOTE: uses single-quoted JS strings throughout to avoid Python escape issues.
 HTML_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -137,90 +128,105 @@ HTML_TEMPLATE = """\
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sermons — Eastpoint Church Durham</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#ffffff;--surface:#ffffff;--border:#e5e7e3;
-  --text:#1a1a1a;--muted:#737a6e;
-  --accent:#6b7c63;--accent-bg:#eef2eb;--accent-text:#4a5c42;
-  --tag-bg:#f0f3ee;--radius:14px;
-  --header-bg:#ffffff;
+  --cream:#faf6ee;
+  --cream-deep:#f3eddf;
+  --ink:#1f1c16;
+  --ink-soft:#565149;
+  --accent:#8a6d3b;
+  --accent-light:#b8944f;
+  --line:#e2d9c4;
+  --surface:#ffffff;
+  --tag-bg:#f0e9d8;
+  --radius:12px;
 }
-@media(prefers-color-scheme:dark){:root{
-  --bg:#141714;--surface:#1e221d;--border:#2e332c;
-  --text:#e8ebe5;--muted:#8a9284;
-  --accent:#8aaa7f;--accent-bg:#1e2b1a;--accent-text:#a8c49c;
-  --tag-bg:#242922;--header-bg:#111311;
-}}
-body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-header{background:var(--header-bg);border-bottom:1px solid var(--border);padding:1rem 1.5rem 0;position:sticky;top:0;z-index:10}
-.hdr{max-width:860px;margin:0 auto}
-.hdr-brand{display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem}
-.hdr-brand svg{flex-shrink:0;opacity:.9}
-.hdr-brand-text h1{font-size:1.05rem;font-weight:700;letter-spacing:-.01em;line-height:1.1}
-.hdr-brand-text p{font-size:.7rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:.1rem}
-.sw{position:relative;margin-bottom:.75rem}
-.sw svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
-input[type=search]{width:100%;padding:.6rem 1rem .6rem 2.5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:.88rem;outline:none;appearance:none;font-family:inherit}
-input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(107,124,99,.13)}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ---- HEADER ---- */
+header{background:var(--cream);border-bottom:1px solid var(--line);padding:2rem 1.5rem 0}
+.hdr{max-width:780px;margin:0 auto}
+.hdr-top{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.6rem;padding-bottom:1.5rem}
+.hdr-eyebrow{font-size:.68rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.hdr-logo{width:52px;height:52px;object-fit:contain}
+.hdr-title{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-weight:500;font-size:1.65rem;color:var(--ink);letter-spacing:-.01em;line-height:1.2}
+.hdr-sub{font-size:.75rem;color:var(--ink-soft);margin-top:.15rem;letter-spacing:.03em}
+
+/* ---- SEARCH + FILTERS ---- */
+.hdr-controls{border-top:1px solid var(--line);padding:1rem 0 .75rem}
+.sw{position:relative;margin-bottom:.7rem}
+.sw svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--ink-soft);pointer-events:none}
+input[type=search]{width:100%;padding:.65rem 1rem .65rem 2.6rem;border:1.5px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--ink);font-size:.88rem;outline:none;appearance:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(138,109,59,.12)}
 input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
-input[type=search]::placeholder{color:var(--muted)}
-.filters{display:flex;gap:.35rem;flex-wrap:wrap;padding-bottom:.75rem}
-.fb{font-size:.71rem;padding:.25rem .7rem;border:1.5px solid var(--border);border-radius:20px;background:none;color:var(--muted);cursor:pointer;font-family:inherit;letter-spacing:.01em;transition:border-color .15s,color .15s}
+input[type=search]::placeholder{color:var(--ink-soft)}
+.filters{display:flex;gap:.35rem;flex-wrap:wrap}
+.fb{font-size:.7rem;padding:.28rem .75rem;border:1.5px solid var(--line);border-radius:20px;background:none;color:var(--ink-soft);cursor:pointer;font-family:inherit;letter-spacing:.02em;transition:border-color .15s,color .15s,background .15s}
 .fb:hover{border-color:var(--accent);color:var(--accent)}
-.fb.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text);font-weight:600}
-main{max-width:860px;margin:0 auto;padding:1.25rem 1.5rem}
-.meta{font-size:.75rem;color:var(--muted);margin-bottom:.85rem;letter-spacing:.01em}
-.card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem;margin-bottom:.65rem;transition:border-color .15s}
-.card:hover{border-color:var(--accent)}
-.ct{font-size:.98rem;font-weight:700;line-height:1.35;margin-bottom:.25rem;letter-spacing:-.01em}
-.cm{font-size:.73rem;color:var(--muted);margin-bottom:.5rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-.cm-dot{width:3px;height:3px;border-radius:50%;background:var(--muted);flex-shrink:0}
-.cd{font-size:.81rem;color:var(--muted);line-height:1.65;margin-bottom:.7rem}
+.fb.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+/* ---- MAIN ---- */
+main{max-width:780px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+.meta{font-size:.72rem;color:var(--ink-soft);margin-bottom:1rem;letter-spacing:.02em}
+
+/* ---- CARDS ---- */
+.card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:1.3rem 1.4rem;margin-bottom:.7rem;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:var(--accent);box-shadow:0 2px 12px rgba(138,109,59,.08)}
+.ct{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-weight:500;font-size:1.08rem;line-height:1.35;margin-bottom:.3rem;color:var(--ink)}
+.cm{font-size:.72rem;color:var(--ink-soft);margin-bottom:.55rem;display:flex;gap:.55rem;flex-wrap:wrap;align-items:center}
+.cm-dot{width:3px;height:3px;border-radius:50%;background:var(--line);flex-shrink:0}
+.cd{font-size:.82rem;color:var(--ink-soft);line-height:1.7;margin-bottom:.75rem}
 .cf{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
-.tag{font-size:.68rem;background:var(--tag-bg);color:var(--muted);border-radius:6px;padding:.15rem .5rem;font-style:italic}
-.sb{font-size:.66rem;font-weight:600;border-radius:6px;padding:.15rem .5rem;background:var(--accent-bg);color:var(--accent-text);text-transform:uppercase;letter-spacing:.04em}
-.wl{font-size:.74rem;color:var(--accent);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:.3rem}
-.wl:hover{text-decoration:underline}
-.tb{font-size:.74rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;margin-left:auto;font-family:inherit;font-weight:600}
-.tb:hover{text-decoration:underline}
-.hit{background:rgba(107,124,99,.18);color:var(--accent-text);border-radius:2px;padding:0 2px}
-.tx-hit{font-size:.77rem;color:var(--muted);line-height:1.65;margin-top:.4rem;margin-bottom:.3rem;border-left:2.5px solid var(--accent);padding-left:.55rem}
-.tx-full{display:none;margin-top:.8rem;padding:.85rem;background:var(--tag-bg);border-radius:10px;border:1px solid var(--border);font-size:.77rem;line-height:1.85;color:var(--text);white-space:pre-wrap;max-height:420px;overflow-y:auto}
+.tag{font-size:.68rem;background:var(--tag-bg);color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:.18rem .55rem;font-style:italic}
+.sb{font-size:.63rem;font-weight:600;border-radius:6px;padding:.18rem .55rem;background:var(--accent);color:#fff;text-transform:uppercase;letter-spacing:.05em}
+.wl{font-size:.75rem;color:var(--accent);text-decoration:none;font-weight:600;display:flex;align-items:center;gap:.3rem;border:1.5px solid var(--line);border-radius:8px;padding:.22rem .6rem;transition:border-color .15s,background .15s}
+.wl:hover{border-color:var(--accent);background:var(--tag-bg)}
+.tb{font-size:.72rem;color:var(--accent);background:none;border:1.5px solid var(--line);border-radius:8px;padding:.22rem .6rem;cursor:pointer;font-family:inherit;font-weight:600;margin-left:auto;transition:border-color .15s,background .15s}
+.tb:hover{border-color:var(--accent);background:var(--tag-bg)}
+.hit{background:rgba(138,109,59,.18);color:var(--accent);border-radius:2px;padding:0 2px}
+.tx-hit{font-size:.77rem;color:var(--ink-soft);line-height:1.7;margin-top:.45rem;margin-bottom:.35rem;border-left:2.5px solid var(--accent);padding-left:.6rem}
+.tx-full{display:none;margin-top:.85rem;padding:.9rem 1rem;background:var(--cream);border-radius:10px;border:1px solid var(--line);font-size:.77rem;line-height:1.9;color:var(--ink-soft);white-space:pre-wrap;max-height:420px;overflow-y:auto}
 .tx-full.open{display:block}
-.empty{text-align:center;padding:3.5rem;color:var(--muted);font-size:.88rem}
+.empty{text-align:center;padding:4rem;color:var(--ink-soft);font-size:.88rem}
+.empty p{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:1.1rem;margin-bottom:.5rem;color:var(--ink)}
+
+/* ---- FOOTER ---- */
+footer{text-align:center;padding:2rem 1rem;font-size:.7rem;color:var(--ink-soft);border-top:1px solid var(--line);letter-spacing:.04em}
+footer a{color:var(--accent);text-decoration:none}
+footer a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
 <header>
   <div class="hdr">
-    <div class="hdr-brand">
-      <svg width="40" height="28" viewBox="0 0 100 70" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="50" y1="0" x2="50" y2="14" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-        <line x1="24" y1="9" x2="31" y2="21" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-        <line x1="76" y1="9" x2="69" y2="21" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-        <line x1="7"  y1="30" x2="20" y2="36" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-        <line x1="93" y1="30" x2="80" y2="36" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-        <path d="M18 62 A32 32 0 0 1 82 62" stroke="#6b7c63" stroke-width="6" fill="none" stroke-linecap="round"/>
-        <line x1="5" y1="64" x2="95" y2="64" stroke="#6b7c63" stroke-width="6" stroke-linecap="round"/>
-      </svg>
-      <div class="hdr-brand-text">
-        <h1>Eastpoint Church</h1>
-        <p>Sermon Archive</p>
+    <div class="hdr-top">
+      <div class="hdr-eyebrow">Sermon Archive</div>
+      <img class="hdr-logo" src="https://res.cloudinary.com/thechurchcov3production/image/fetch/f_auto/https://media.thechurchcoassets.com/accounts/7624/abb18065-1f40-4731-a9b3-4195148ce331-./EPC-ICON-GRN__largepreview__.webp" alt="Eastpoint Church">
+      <div>
+        <div class="hdr-title">Eastpoint Church</div>
+        <div class="hdr-sub">Durham, North Carolina</div>
       </div>
-      <span style="margin-left:auto;font-size:.73rem;color:var(--muted)" id="total"></span>
     </div>
-    <div class="sw">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="search" id="q" placeholder="Search titles, scripture, series, or transcript text…" oninput="render()"/>
+    <div class="hdr-controls">
+      <div class="sw">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="q" placeholder="Search titles, scripture, or transcript text…" oninput="render()"/>
+      </div>
+      <div class="filters" id="filters"></div>
     </div>
-    <div class="filters" id="filters"></div>
   </div>
 </header>
 <main>
   <div class="meta" id="meta"></div>
   <div id="results"></div>
 </main>
+<footer>
+  <span id="footer-count"></span> &nbsp;&middot;&nbsp; <a href="https://eastpointdurham.com" target="_blank">eastpointdurham.com</a>
+</footer>
 <script>
 var DATA = __DATA_JSON__;
 var SERIES_ORDER = ['John','Colossians','Isaiah','Advent','Prayer','Together','Psalms','Special'];
@@ -235,7 +241,7 @@ var withTranscripts = 0;
 for (var i = 0; i < DATA.length; i++) { if (DATA[i].transcript) withTranscripts++; }
 
 function fmt(d) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
 }
 
 function esc(str) {
@@ -269,14 +275,14 @@ function excerpt(transcript, q) {
   if (idx < 0) { return ''; }
   var start = Math.max(0, idx - 80);
   var end = Math.min(transcript.length, idx + 220);
-  return (start > 0 ? '...' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? '...' : '');
+  return (start > 0 ? '…' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? '…' : '');
 }
 
 function toggleTx(btn) {
   var card = btn.parentNode.parentNode;
   var box = card.querySelector('.tx-full');
   var isOpen = box.classList.toggle('open');
-  btn.textContent = isOpen ? 'Hide transcript' : 'Show transcript';
+  btn.textContent = isOpen ? 'Hide transcript' : 'Read transcript';
 }
 
 function buildFilters() {
@@ -298,9 +304,10 @@ function buildFilters() {
     (function(name) { btn.onclick = function() { setFilter(name); }; })(all[i]);
     el.appendChild(btn);
   }
-  document.getElementById('total').textContent = withTranscripts === DATA.length
-    ? 'Full transcripts - ' + DATA.length + ' sermons'
-    : DATA.length + ' sermons' + (withTranscripts ? ' (' + withTranscripts + ' with transcripts)' : '');
+  var fc = document.getElementById('footer-count');
+  if (fc) {
+    fc.textContent = DATA.length + ' sermons' + (withTranscripts ? ' · ' + withTranscripts + ' with transcripts' : '');
+  }
 }
 
 function setFilter(f) { active = f; buildFilters(); render(); }
@@ -322,28 +329,33 @@ function render() {
       list.push(s);
     }
   }
-  document.getElementById('meta').textContent =
-    (q || active !== 'All') ? list.length + ' sermon' + (list.length !== 1 ? 's' : '') + ' found' : '';
+  var metaEl = document.getElementById('meta');
+  metaEl.textContent = (q || active !== 'All')
+    ? list.length + ' sermon' + (list.length !== 1 ? 's' : '') + ' found'
+    : '';
   if (!list.length) {
-    document.getElementById('results').innerHTML = '<div class=empty>No sermons match your search.</div>';
+    document.getElementById('results').innerHTML = '<div class=empty><p>No sermons found.</p>Try a different search or filter.</div>';
     return;
   }
   var html = '';
   for (var i = 0; i < list.length; i++) {
     var s = list[i];
     var txSnip = excerpt(s.transcript, raw);
-    var txHtml = txSnip ? '<div class="tx-hit">...' + txSnip + '...</div>' : '';
+    var txHtml = txSnip ? '<div class="tx-hit">' + txSnip + '</div>' : '';
     var badge  = s.series ? '<span class="sb">' + esc(s.series) + '</span>' : '';
-    var txBtn  = s.transcript ? '<button class="tb" onclick="toggleTx(this)">Show transcript</button>' : '';
+    var txBtn  = s.transcript ? '<button class="tb" onclick="toggleTx(this)">Read transcript</button>' : '';
     var txFull = s.transcript ? '<div class="tx-full">' + esc(s.transcript) + '</div>' : '';
     html += '<div class="card">';
     html += '<div class="ct">' + hi(s.title, raw) + '</div>';
-    html += '<div class="cm"><span>' + fmt(s.date) + '</span><span class="cm-dot"></span><span>' + esc(s.preacher) + '</span>' + (badge ? '<span class="cm-dot"></span>' + badge : '') + '</div>';
-    html += '<div class="cd">' + hi(s.desc, raw) + '</div>';
+    html += '<div class="cm"><span>' + fmt(s.date) + '</span>';
+    if (s.preacher) { html += '<span class="cm-dot"></span><span>' + esc(s.preacher) + '</span>'; }
+    if (badge) { html += '<span class="cm-dot"></span>' + badge; }
+    html += '</div>';
+    if (s.desc) { html += '<div class="cd">' + hi(s.desc, raw) + '</div>'; }
     html += txHtml + txFull;
     html += '<div class="cf">';
-    html += '<span class="tag">' + esc(s.scripture) + '</span>';
-    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch</a>';
+    if (s.scripture) { html += '<span class="tag">' + esc(s.scripture) + '</span>'; }
+    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch →</a>';
     html += txBtn;
     html += '</div></div>';
   }
