@@ -60,8 +60,85 @@ def get_channel_videos(youtube):
     return channel_name, videos
 
 
-def get_transcript(video_id):
-    # yt-dlp FIRST — works from GitHub Actions IPs, handles YouTube anti-bot
+def build_youtube_oauth():
+    """Build an OAuth-authenticated YouTube service using stored Google credentials."""
+    client_id     = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN")
+    if not all([client_id, client_secret, refresh_token]):
+        return None
+    try:
+        from google.oauth2.credentials import Credentials
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/youtube.force-ssl"],
+        )
+        return build("youtube", "v3", credentials=creds)
+    except Exception as e:
+        print(f"  Could not build OAuth YouTube service: {e}")
+        return None
+
+
+def get_transcript_via_youtube_api(video_id, youtube_oauth):
+    """Download captions via YouTube Data API (channel-owner OAuth â works from any IP)."""
+    try:
+        import re, io
+        from googleapiclient.http import MediaIoBaseDownload
+
+        captions_resp = youtube_oauth.captions().list(
+            part="snippet", videoId=video_id
+        ).execute()
+
+        # Prefer manual captions; fall back to auto-generated (asr)
+        caption_id = None
+        for item in captions_resp.get("items", []):
+            snippet = item["snippet"]
+            if snippet["language"].startswith("en"):
+                if snippet["trackKind"] in ("standard", "forced"):
+                    caption_id = item["id"]
+                    break
+                elif snippet["trackKind"] == "asr" and not caption_id:
+                    caption_id = item["id"]
+
+        if not caption_id:
+            print(f"      no English caption track found")
+            return None
+
+        request = youtube_oauth.captions().download(id=caption_id, tfmt="vtt")
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        lines, seen = [], set()
+        for line in fh.getvalue().decode("utf-8").splitlines():
+            if "-->" in line or line.startswith("WEBVTT") or not line.strip():
+                continue
+            clean = re.sub(r"<[^>]+>", "", line).strip()
+            if clean and clean not in seen:
+                seen.add(clean)
+                lines.append(clean)
+
+        return " ".join(lines) if lines else None
+
+    except Exception as e:
+        print(f"      YouTube API captions error: {e}")
+        return None
+
+
+def get_transcript(video_id, youtube_oauth=None):
+    # Method 1: YouTube Data API (OAuth) â works from any IP including GitHub Actions
+    if youtube_oauth:
+        result = get_transcript_via_youtube_api(video_id, youtube_oauth)
+        if result:
+            return result
+
+    # yt-dlp â works from residential IPs, handles YouTube anti-bot
     try:
         import subprocess, tempfile, glob, re
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,7 +211,7 @@ def polish_transcript(raw_text):
 
     try:
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropia.Anthropic(api_key=api_key)
 
         # Split into ~2500-word chunks so output stays within model limits
         words = raw_text.split()
@@ -154,7 +231,7 @@ def polish_transcript(raw_text):
                     "- Organize into natural paragraphs (every 4-8 sentences)\n"
                     "- Remove filler words: um, uh, you know, kind of, sort of, like, right, okay so\n"
                     "- Remove false starts and immediate repetitions\n"
-                    "- Keep ALL theological content and ideas intact — do not summarize or cut\n"
+                    "- Keep ALL theological content and ideas intact â do not summarize or cut\n"
                     "- Preserve the preacher's natural voice and tone\n"
                     "- Return only the cleaned text with no preamble or commentary\n\n"
                     f"TRANSCRIPT:\n{chunk}"
@@ -196,7 +273,7 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sermons — Eastpoint Church Durham</title>
+<title>Sermons â Eastpoint Church Durham</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -283,7 +360,7 @@ footer a:hover{text-decoration:underline}
     <div class="hdr-controls">
       <div class="sw">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="search" id="q" placeholder="Search titles, scripture, or transcript text…" oninput="render()"/>
+        <input type="search" id="q" placeholder="Search titles, scripture, or transcript textâ¦" oninput="render()"/>
       </div>
       <div class="filters" id="filters"></div>
     </div>
@@ -344,7 +421,7 @@ function excerpt(transcript, q) {
   if (idx < 0) { return ''; }
   var start = Math.max(0, idx - 80);
   var end = Math.min(transcript.length, idx + 220);
-  return (start > 0 ? '…' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? '…' : '');
+  return (start > 0 ? 'â¦' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? 'â¦' : '');
 }
 
 function toggleTx(btn) {
@@ -375,7 +452,7 @@ function buildFilters() {
   }
   var fc = document.getElementById('footer-count');
   if (fc) {
-    fc.textContent = DATA.length + ' sermons' + (withTranscripts ? ' · ' + withTranscripts + ' with transcripts' : '');
+    fc.textContent = DATA.length + ' sermons' + (withTranscripts ? ' Â· ' + withTranscripts + ' with transcripts' : '');
   }
 }
 
@@ -424,7 +501,7 @@ function render() {
     html += txHtml + txFull;
     html += '<div class="cf">';
     if (s.scripture) { html += '<span class="tag">' + esc(s.scripture) + '</span>'; }
-    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch →</a>';
+    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch â</a>';
     html += txBtn;
     html += '</div></div>';
   }
@@ -457,6 +534,11 @@ def build_html(channel_name, sermons):
 
 def main():
     youtube = build("youtube", "v3", developerKey=API_KEY)
+    youtube_oauth = build_youtube_oauth()
+    if youtube_oauth:
+        print("YouTube OAuth service ready (captions API enabled)")
+    else:
+        print("No YouTube OAuth credentials â will fall back to yt-dlp/transcript-api")
 
     existing = {}
     if os.path.exists(DATA_FILE):
@@ -473,11 +555,11 @@ def main():
     for v in videos:
         cached = existing.get(v["id"])
         if cached and cached.get("transcript") and cached.get("transcript_polished") and "\n\n" in cached.get("transcript", ""):
-            # Already fetched and properly polished (has paragraph breaks) — use as-is
+            # Already fetched and properly polished (has paragraph breaks) â use as-is
             v["transcript"] = cached["transcript"]
             v["transcript_polished"] = True
         elif cached and cached.get("transcript"):
-            # Has raw transcript but not yet polished — polish it once
+            # Has raw transcript but not yet polished â polish it once
             print(f"  Polishing transcript: {v['title'][:60]}")
             v["transcript"] = polish_transcript(cached["transcript"])
             v["transcript_polished"] = True
@@ -486,7 +568,7 @@ def main():
         else:
             # Need to fetch raw, then polish
             print(f"  Fetching transcript: {v['title'][:60]}")
-            raw = get_transcript(v["id"])
+            raw = get_transcript(v["id"], youtube_oauth)
             if raw:
                 print(f"    Polishing ({len(raw)} chars raw)...")
                 v["transcript"] = polish_transcript(raw)
