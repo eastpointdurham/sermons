@@ -211,7 +211,7 @@ def polish_transcript(raw_text):
 
     try:
         import anthropic
-        client = anthropia.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key)
 
         # Split into ~2500-word chunks so output stays within model limits
         words = raw_text.split()
