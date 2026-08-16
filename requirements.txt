@@ -4,3 +4,4 @@ google-auth-oauthlib
 youtube-transcript-api
 yt-dlp
 anthropic
+faster-whisper
