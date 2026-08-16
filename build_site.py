@@ -64,7 +64,7 @@ def build_youtube_oauth():
     """Build an OAuth-authenticated YouTube service using stored Google credentials."""
     client_id     = os.environ.get("GOOGLE_CLIENT_ID")
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN")
+    refresh_token = os.environ.get("GOOGLE_YOUTUBE_REFRESH_TOKEN")
     if not all([client_id, client_secret, refresh_token]):
         return None
     try:
