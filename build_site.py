@@ -529,7 +529,12 @@ def build_html(channel_name, sermons):
         "url":        s["url"],
     } for s in sermons]
     data_json = json.dumps(js_data, ensure_ascii=False, separators=(",", ":"))
-    return HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
+    html = HTML_TEMPLATE.replace("__DATA_JSON__", data_json)
+    html = html.replace('\u00e2\u0080\u0094', '\u2014')   # em dash
+    html = html.replace('\u00e2\u0086\u0092', '&#8594;')  # right arrow
+    html = html.replace('\u00e2\u0080\u00a6', '&#8230;')  # ellipsis
+    html = html.replace('\u00c2\u00b7', '&#183;')         # middle dot
+    return html
 
 
 def main():
