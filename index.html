@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sermons â Eastpoint Church Durham</title>
+<title>Sermons — Eastpoint Church Durham</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -90,7 +90,7 @@ footer a:hover{text-decoration:underline}
     <div class="hdr-controls">
       <div class="sw">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="search" id="q" placeholder="Search titles, scripture, or transcript textâ¦" oninput="render()"/>
+        <input type="search" id="q" placeholder="Search titles, scripture, or transcript text&#8230;" oninput="render()"/>
       </div>
       <div class="filters" id="filters"></div>
     </div>
@@ -151,7 +151,7 @@ function excerpt(transcript, q) {
   if (idx < 0) { return ''; }
   var start = Math.max(0, idx - 80);
   var end = Math.min(transcript.length, idx + 220);
-  return (start > 0 ? 'â¦' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? 'â¦' : '');
+  return (start > 0 ? '&#8230;' : '') + hi(transcript.slice(start, end).trim(), q) + (end < transcript.length ? '&#8230;' : '');
 }
 
 function toggleTx(btn) {
@@ -182,7 +182,7 @@ function buildFilters() {
   }
   var fc = document.getElementById('footer-count');
   if (fc) {
-    fc.textContent = DATA.length + ' sermons' + (withTranscripts ? ' Â· ' + withTranscripts + ' with transcripts' : '');
+    fc.textContent = DATA.length + ' sermons' + (withTranscripts ? ' &#183; ' + withTranscripts + ' with transcripts' : '');
   }
 }
 
@@ -231,7 +231,7 @@ function render() {
     html += txHtml + txFull;
     html += '<div class="cf">';
     if (s.scripture) { html += '<span class="tag">' + esc(s.scripture) + '</span>'; }
-    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch â</a>';
+    html += '<a class="wl" href="' + s.url + '" target="_blank">Watch &#8594;</a>';
     html += txBtn;
     html += '</div></div>';
   }
