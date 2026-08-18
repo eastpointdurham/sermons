@@ -17,21 +17,34 @@ except ImportError:
 API_KEY    = os.environ.get("YOUTUBE_API_KEY", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "UCu5frCUoNL0rOGCAClqHBFA")
 DATA_FILE  = "sermons.json"
+# Unpublished sermons we have already handled. Ids only — no transcript text,
+# because this repository is public and those sermons are not yet released.
+PRIVATE_STATE_FILE = "private_sermons.json"
 
 if not API_KEY:
     raise SystemExit("YOUTUBE_API_KEY environment variable not set.")
 
 
-def get_channel_videos(youtube):
-    resp = youtube.channels().list(part="contentDetails,snippet", id=CHANNEL_ID).execute()
+def get_channel_videos(youtube, youtube_oauth=None):
+    """List sermons on the channel.
+
+    Pass youtube_oauth to list with channel-owner credentials, which also
+    returns private and unlisted uploads. An API key only ever sees public
+    videos, so without it, drafts uploaded by upload_sermon.py are invisible
+    here and would never get a transcript.
+
+    Each returned video carries a "privacy" field: public | unlisted | private.
+    """
+    client = youtube_oauth or youtube
+    resp = client.channels().list(part="contentDetails,snippet", id=CHANNEL_ID).execute()
     if not resp.get("items"):
         raise SystemExit(f"Channel not found: {CHANNEL_ID}")
     channel_name = resp["items"][0]["snippet"]["title"]
     uploads_id   = resp["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
     videos, page_token = [], None
     while True:
-        pl = youtube.playlistItems().list(
-            part="snippet", playlistId=uploads_id,
+        pl = client.playlistItems().list(
+            part="snippet,status", playlistId=uploads_id,
             maxResults=50, pageToken=page_token
         ).execute()
         for item in pl["items"]:
@@ -51,6 +64,7 @@ def get_channel_videos(youtube):
                 "date":        s["publishedAt"][:10],
                 "description": s.get("description", "")[:400].replace("\n", " "),
                 "url":         "https://www.youtube.com/watch?v=" + s["resourceId"]["videoId"],
+                "privacy":     item.get("status", {}).get("privacyStatus", "public"),
                 "transcript":  None,
             })
         page_token = pl.get("nextPageToken")
@@ -58,6 +72,38 @@ def get_channel_videos(youtube):
             break
         time.sleep(0.3)
     return channel_name, videos
+
+
+def partition_videos(videos, private_seen, today=None):
+    """Split the channel listing into what may be published and what may not.
+
+    Returns (public_videos, still_private).
+
+    - public_videos go into sermons.json and index.html.
+    - still_private records unpublished sermons by id only, so they are not
+      re-transcribed every hour and their text never enters this public repo.
+    - A sermon that has since been published drops out of still_private, because
+      it now lives in sermons.json.
+    """
+    today = today or time.strftime("%Y-%m-%d")
+    public_videos = [v for v in videos if v.get("privacy") == "public"]
+    hidden_videos = [v for v in videos if v.get("privacy") != "public"]
+
+    still_private = list(private_seen.values())
+    known = {s["id"] for s in still_private}
+    for v in hidden_videos:
+        if v["id"] not in known:
+            still_private.append({
+                "id":      v["id"],
+                "title":   v["title"],
+                "privacy": v["privacy"],
+                "seen":    today,
+            })
+            known.add(v["id"])
+
+    published_ids = {v["id"] for v in public_videos}
+    still_private = [s for s in still_private if s["id"] not in published_ids]
+    return public_videos, still_private
 
 
 def build_youtube_oauth():
@@ -552,12 +598,26 @@ def main():
                 existing[s["id"]] = s
         print(f"Loaded {len(existing)} cached sermons from {DATA_FILE}")
 
+    # Ids of not-yet-public sermons we have already transcribed and made a Drive
+    # doc for. Kept separately so an unpublished sermon is not re-processed every
+    # hour, and so its transcript never lands in this public repo.
+    private_seen = {}
+    if os.path.exists(PRIVATE_STATE_FILE):
+        with open(PRIVATE_STATE_FILE, encoding="utf-8") as f:
+            private_seen = {s["id"]: s for s in json.load(f)}
+        print(f"Loaded {len(private_seen)} previously-seen unpublished sermon(s)")
+
     print("Fetching video list from YouTube...")
-    channel_name, videos = get_channel_videos(youtube)
-    print(f"Found {len(videos)} sermons on '{channel_name}'")
+    channel_name, videos = get_channel_videos(youtube, youtube_oauth)
+    n_hidden = sum(1 for v in videos if v.get("privacy") != "public")
+    print(f"Found {len(videos)} sermons on '{channel_name}' ({n_hidden} not yet public)")
 
     new_count = 0
     for v in videos:
+        # An unpublished sermon we have already transcribed and filed in Drive:
+        # nothing more to do until it goes public.
+        if v.get("privacy") != "public" and v["id"] in private_seen:
+            continue
         cached = existing.get(v["id"])
         if cached and cached.get("transcript") and cached.get("transcript_polished") and "\n\n" in cached.get("transcript", ""):
             # Already fetched and properly polished (has paragraph breaks) â use as-is
@@ -589,8 +649,13 @@ def main():
     with_tx = sum(1 for v in videos if v["transcript"])
     print(f"\nFetched {new_count} new | {with_tx}/{len(videos)} total with transcripts")
 
-    # Track truly new sermons (not in previous sermons.json) for Drive doc creation
-    new_sermons = [v for v in videos if v["id"] not in existing]
+    # Drive docs are created for anything we have not filed before, published or
+    # not — that is the whole point of listing unpublished uploads: the transcript
+    # exists before a human reviews and publishes the draft.
+    new_sermons = [
+        v for v in videos
+        if v["id"] not in existing and v["id"] not in private_seen
+    ]
     if new_sermons:
         with open("new_sermons.json", "w", encoding="utf-8") as f:
             json.dump(new_sermons, f, indent=2, ensure_ascii=False)
@@ -598,12 +663,18 @@ def main():
     elif os.path.exists("new_sermons.json"):
         os.remove("new_sermons.json")
 
+    public_videos, still_private = partition_videos(videos, private_seen)
+
+    with open(PRIVATE_STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(still_private, f, indent=2, ensure_ascii=False)
+    print(f"Saved {PRIVATE_STATE_FILE} ({len(still_private)} awaiting publication)")
+
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(videos, f, indent=2, ensure_ascii=False)
-    print(f"Saved {DATA_FILE}")
+        json.dump(public_videos, f, indent=2, ensure_ascii=False)
+    print(f"Saved {DATA_FILE} ({len(public_videos)} published)")
 
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(build_html(channel_name, videos))
+        f.write(build_html(channel_name, public_videos))
     print("Built index.html\nDone.")
 
 

@@ -48,7 +48,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add index.html sermons.json
+          git add index.html sermons.json private_sermons.json
           git diff --staged --quiet && echo "No changes." || (
             git commit -m "Update sermon archive $(date +'%Y-%m-%d')" &&
             git push

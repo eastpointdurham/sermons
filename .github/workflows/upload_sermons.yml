@@ -1,0 +1,83 @@
+name: Upload Sermons to YouTube
+
+# Watches the Drive "Sermons" folder. When a new recording appears, uploads it
+# to YouTube as a PRIVATE draft and drops a podcast MP3 into Drive from the same
+# download. Nothing is ever published automatically.
+#
+# The hourly Update Sermon Archive workflow then sees the private draft (it
+# lists uploads with OAuth), transcribes it, and files the transcript in Drive.
+
+on:
+  schedule:
+    # Every 2 hours Sunday–Wednesday, 13:07 UTC onward. Off-minute on purpose.
+    - cron: "7 13-23/2 * * 0-3"
+  workflow_dispatch:
+    inputs:
+      max_per_run:
+        description: "How many sermons to process this run"
+        required: false
+        default: "1"
+      dry_run:
+        description: "Plan only — print the metadata, upload nothing"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write        # to commit uploaded_sermons.json
+
+concurrency:
+  group: upload-sermons
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Free up disk space
+        # Sermon recordings run 2–6 GB. Clearing preinstalled tooling buys ~20 GB.
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h / | tail -1
+
+      - name: Upload new sermons
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_YOUTUBE_REFRESH_TOKEN: ${{ secrets.GOOGLE_YOUTUBE_REFRESH_TOKEN }}
+          SERMON_FOLDER_ID: 1SCMlaqWua24gPPU-Z7yF19pisehp3xu_
+          PODCAST_FOLDER_ID: 1azEoTNVdrd1oLnBAsCMZqNby4T4417qz
+          PLANNING_DOC_ID: 1LZDGqW9G9uNWCCwMjv8u3kwQHlE6azpLQz96ynHOM6o
+          PLANNING_DOC_START_YEAR: "2025"
+          MAX_PER_RUN: ${{ github.event.inputs.max_per_run || '1' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: python upload_sermon.py
+
+      - name: Commit upload log
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add uploaded_sermons.json
+          git diff --staged --quiet && echo "No changes." || (
+            git commit -m "Record sermon upload $(date +'%Y-%m-%d')" &&
+            git push
+          )
