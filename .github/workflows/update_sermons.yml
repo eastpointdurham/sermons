@@ -44,6 +44,18 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python create_drive_docs.py
 
+      - name: Write YouTube descriptions from transcripts
+        # Replaces the plain planning-doc description written at upload time with
+        # one based on what the sermon actually says. Updates the snippet only,
+        # so a private draft stays private.
+        if: hashFiles('new_sermons.json') != ''
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_YOUTUBE_REFRESH_TOKEN: ${{ secrets.GOOGLE_YOUTUBE_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python enrich_descriptions.py
+
       - name: Commit updated site
         run: |
           git config --global user.name "GitHub Actions"
