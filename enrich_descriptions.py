@@ -79,7 +79,7 @@ Transcript (may be truncated):
 {transcript}
 </transcript>
 
-Write two things.
+Write these things.
 
 DESCRIPTION: 150-250 words. Open with two to four sentences of real substance \
 about what this sermon actually argues - the specific text, the central claim, \
@@ -87,6 +87,8 @@ the turn it makes. Write plainly, the way a church speaks to its own people. No 
 marketing voice, no clickbait, no hype, no emoji, no second-person exhortation. \
 Do not invent quotes, statistics, or stories that are not in the transcript. If \
 the transcript is too thin to describe honestly, say only what you can support.
+
+{chapters_ask}
 
 TAGS: 10-15 comma-separated tags. Include the scripture book and reference, \
 three to five themes actually discussed in this sermon, and the terms sermon, \
@@ -97,9 +99,24 @@ Return exactly this format and nothing else:
 
 DESCRIPTION:
 <the description>
-
+{chapters_format}
 TAGS:
 <comma separated tags>"""
+
+# Added when the caption timings are available.
+CHAPTERS_ASK = """
+
+CHAPTERS: YouTube chapters for viewers jumping around the video. 5-8 lines, each "M:SS Title" (or "H:MM:SS Title"), the first at 0:00. Take the times from the [m:ss] markers below; mark real turns: welcome, the scripture reading, each main movement of the sermon, the response. Titles of two to six words, in the sermon's own terms, no numbering.
+
+Timed transcript:
+<timed>
+{timed}
+</timed>"""
+CHAPTERS_FORMAT = """
+CHAPTERS:
+<one chapter per line>
+"""
+
 
 
 def parse_model_output(text):
@@ -112,6 +129,94 @@ def parse_model_output(text):
         desc_part = text
     description = desc_part.replace("DESCRIPTION:", "", 1).strip()
     return description, tags
+
+
+def _clock(sec):
+    sec = int(sec)
+    h, m, s_ = sec // 3600, sec % 3600 // 60, sec % 60
+    return f"{h}:{m:02d}:{s_:02d}" if h else f"{m}:{s_:02d}"
+
+
+def _secs(stamp):
+    parts = [int(p) for p in stamp.split(":")]
+    return sum(p * 60 ** i for i, p in enumerate(reversed(parts)))
+
+
+def timed_captions(youtube, video_id):
+    """[(start_seconds, text)] from the video's English caption track, or []."""
+    import io
+    import re
+    from googleapiclient.http import MediaIoBaseDownload
+    items = youtube.captions().list(part="snippet", videoId=video_id).execute().get("items", [])
+    track = None
+    for it in items:
+        sn = it["snippet"]
+        if sn["language"].startswith("en"):
+            if sn["trackKind"] in ("standard", "forced"):
+                track = it["id"]
+                break
+            if sn["trackKind"] == "asr" and not track:
+                track = it["id"]
+    if not track:
+        return []
+    fh = io.BytesIO()
+    dl = MediaIoBaseDownload(fh, youtube.captions().download(id=track, tfmt="vtt"))
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    return parse_vtt(fh.getvalue().decode("utf-8"))
+
+
+def parse_vtt(vtt):
+    import re
+    cues, start, seen = [], None, set()
+    for line in vtt.splitlines():
+        m = re.match(r"(\d+):(\d{2}):(\d{2})\.\d+\s+-->|(\d{2}):(\d{2})\.\d+\s+-->", line)
+        if m:
+            g = m.groups()
+            start = (int(g[0]) * 3600 + int(g[1]) * 60 + int(g[2])) if g[0] else (int(g[3]) * 60 + int(g[4]))
+            continue
+        text = re.sub(r"<[^>]+>", "", line).strip()
+        if start is None or not text or line.startswith("WEBVTT") or text in seen:
+            continue
+        seen.add(text)
+        cues.append((start, text))
+    return cues
+
+
+def timed_digest(cues, every=20):
+    """The captions in ~20-second lines, each led by its [m:ss] time."""
+    out, block, t0 = [], [], None
+    for t, text in cues:
+        if t0 is None:
+            t0 = t
+        if t - t0 >= every and block:
+            out.append(f"[{_clock(t0)}] {' '.join(block)}")
+            block, t0 = [], t
+        block.append(text)
+    if block:
+        out.append(f"[{_clock(t0)}] {' '.join(block)}")
+    return "\n".join(out)
+
+
+def parse_chapters(text, end=None):
+    """Valid YouTube chapters from the model's lines, or [] when they would not
+    work (YouTube needs 0:00 first, at least three, 10+ seconds apart)."""
+    import re
+    got = []
+    for line in (text or "").splitlines():
+        m = re.match(r"\s*[-*]?\s*(\d{1,2}(?::\d{2}){1,2})\s*[-–—:]?\s+(.+?)\s*$", line)
+        if m:
+            got.append((_secs(m.group(1)), m.group(2).strip()))
+    got.sort()
+    if not got or got[0][0] > 60:
+        return []
+    got[0] = (0, got[0][1])                    # the first chapter must start at 0:00
+    out = [got[0]]
+    for t, title in got[1:]:
+        if t - out[-1][0] >= 10 and (end is None or t < end - 10):
+            out.append((t, title))
+    return out if len(out) >= 3 else []
 
 
 def trim_tags(tags, budget=460):
@@ -128,11 +233,12 @@ def trim_tags(tags, budget=460):
     return out
 
 
-def compose(sermon, client):
+def compose(sermon, client, cues=None):
     transcript = (sermon.get("transcript") or "").strip()
     if not transcript:
         return None, None
 
+    timed = timed_digest(cues) if cues else ""
     msg = client.beta.messages.create(
         model=MODEL,
         max_tokens=16000,      # room for adaptive thinking before the description
@@ -146,17 +252,27 @@ def compose(sermon, client):
                 scripture=sermon.get("scripture", "") or "not specified",
                 preacher=sermon.get("preacher", "Peter Frey"),
                 transcript=transcript[:TRANSCRIPT_CHARS],
+                chapters_ask=CHAPTERS_ASK.format(timed=timed[:TRANSCRIPT_CHARS]) if timed else "",
+                chapters_format=CHAPTERS_FORMAT if timed else "",
             ),
         }],
     )
     if msg.stop_reason == "refusal":
         return None, None
     text = "".join(b.text for b in msg.content if b.type == "text")
+    chapters = []
+    if "CHAPTERS:" in text:
+        head, rest = text.split("CHAPTERS:", 1)
+        ch, sep, tail = rest.partition("TAGS:")
+        chapters = parse_chapters(ch, end=cues[-1][0] if cues else None)
+        text = head + sep + tail
     description, tags = parse_model_output(text)
     if not description:
         return None, None
 
     body = f"{description}\n"
+    if chapters:
+        body += "\nChapters\n" + "\n".join(f"{_clock(t)} {title}" for t, title in chapters) + "\n"
     if sermon.get("scripture"):
         body += f"\nScripture: {sermon['scripture']}"
     if sermon.get("preacher"):
@@ -213,8 +329,14 @@ def main():
 
     for s in todo:
         print(f"\n=== {s.get('title', '?')} ({s['id']})")
+        cues = []
+        if youtube is not None:
+            try:
+                cues = timed_captions(youtube, s["id"])
+            except Exception as e:
+                print(f"  ! no caption timings, so no chapters: {e}")
         try:
-            description, tags = compose(s, client)
+            description, tags = compose(s, client, cues)
         except Exception as e:
             print(f"  ! could not compose description: {e}")
             continue
@@ -239,5 +361,30 @@ def main():
     return 0
 
 
+def redo(video_id):
+    """Rewrite one video's description from its captions (e.g. after the format
+    changes). Title, category and privacy are kept."""
+    youtube = youtube_service()
+    snip = youtube.videos().list(part="snippet", id=video_id).execute()["items"][0]["snippet"]
+    parts = [p.strip() for p in snip["title"].split("|")]
+    cues = timed_captions(youtube, video_id)
+    if not cues:
+        raise SystemExit(f"No captions for {video_id} yet")
+    sermon = {"id": video_id, "title": parts[0],
+              "scripture": parts[1] if len(parts) > 1 else "",
+              "preacher": parts[2] if len(parts) > 2 else "Peter Frey",
+              "transcript": " ".join(t for _, t in cues)}
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    description, tags = compose(sermon, client, cues)
+    if not description:
+        raise SystemExit("The model returned nothing usable")
+    print(description)
+    if update_video(youtube, video_id, description, tags):
+        print("\ndescription and tags updated (privacy unchanged)")
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--video":
+        sys.exit(redo(sys.argv[2]))
     sys.exit(main())

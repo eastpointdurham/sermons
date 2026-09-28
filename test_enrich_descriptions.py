@@ -201,5 +201,43 @@ with _tf.TemporaryDirectory() as _d:
     finally:
         _os.chdir(_cwd)
 
+# chapters -----------------------------------------------------------------------
+vtt = """WEBVTT
+
+00:00:01.000 --> 00:00:04.000
+Good morning, church.
+
+00:00:04.000 --> 00:00:07.000
+Good morning, church.
+
+00:01:30.500 --> 00:01:34.000
+<c>Our reading is from Mark 1.</c>
+
+01:02:03.000 --> 01:02:05.000
+Amen.
+"""
+cues = E.parse_vtt(vtt)
+check("vtt cues parsed with times", cues, [(1, "Good morning, church."), (90, "Our reading is from Mark 1."),
+                                            (3723, "Amen.")])
+dig = E.timed_digest([(0, "a"), (5, "b"), (25, "c"), (61, "d")])
+check("digest groups by time", dig, "[0:00] a b\n[0:25] c\n[1:01] d")
+check("hour clock", E._clock(3723), "1:02:03")
+ok = E.parse_chapters("0:00 Welcome\n4:10 The reading\n9:30 Turn and trust\n31:05 Respond")
+check("chapters parsed", [t for t, _ in ok], [0, 250, 570, 1865])
+check("first chapter forced to 0:00", E.parse_chapters("0:12 Welcome\n5:00 A\n9:00 B")[0][0], 0)
+check("too few chapters dropped", E.parse_chapters("0:00 Welcome\n5:00 Reading"), [])
+check("chapters closer than 10s dropped", len(E.parse_chapters("0:00 A\n0:05 B\n3:00 C\n6:00 D")), 3)
+check("chapters past the end dropped", len(E.parse_chapters("0:00 A\n3:00 B\n6:00 C\n50:00 D", end=900)), 3)
+check("junk gives no chapters", E.parse_chapters("no times here"), [])
+
+fc2 = FakeClaude([NS(type="text", text="DESCRIPTION:\nA real summary.\n\nCHAPTERS:\n0:00 Welcome\n"
+                                       "3:20 The reading\n8:45 Turn and trust\n\nTAGS:\nMark")])
+d4, t4 = E.compose(sermon, fc2, [(0, "hi"), (200, "reading"), (525, "turn"), (2000, "end")])
+check("chapters land after the summary", "A real summary.\n\nChapters\n0:00 Welcome\n3:20 The reading\n8:45 Turn and trust"
+      in d4, True)
+check("chapters asked for when timings exist", "CHAPTERS:" in fc2.sent["messages"][0]["content"], True)
+check("chapters not asked for without timings", "CHAPTERS:" not in fc.sent["messages"][0]["content"], True)
+check("tags still parsed with chapters", t4, ["Mark"])
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

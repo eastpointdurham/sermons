@@ -1,0 +1,33 @@
+name: Redo Sermon Description
+
+# Rewrite one video's YouTube description (summary, chapters, footer) and tags
+# from its captions, e.g. after the description format changes. The title,
+# category and privacy are kept; a private draft stays private.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "YouTube video id (the part after watch?v= or /video/)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  redo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Rewrite description
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_YOUTUBE_REFRESH_TOKEN: ${{ secrets.GOOGLE_YOUTUBE_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python enrich_descriptions.py --video "${{ github.event.inputs.video_id }}"
