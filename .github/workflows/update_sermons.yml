@@ -2,11 +2,19 @@ name: Update Sermon Archive
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Every hour
+    # Hourly, off the top of the hour: GitHub delays or drops many ':00' runs.
+    - cron: '23 * * * *'
+  workflow_run:           # right after an upload (captions may take an hour or two;
+    workflows: ["Upload Sermons to YouTube"]   # the hourly run picks them up then)
+    types: [completed]
   workflow_dispatch:      # Also allows manual run from GitHub Actions tab
 
 permissions:
   contents: write  # Needed to commit index.html and sermons.json
+
+concurrency:              # the upload trigger and the hourly run must not overlap
+  group: update-sermons
+  cancel-in-progress: false
 
 jobs:
   update:
