@@ -207,11 +207,23 @@ def ensure_folder(drive, name, parent_id):
 
 
 def upload(drive, path, name, parent_id, mime, as_google_doc=False):
+    """Upload into parent_id. A file already there under the same name gets a new
+    version instead of a duplicate (re-runs replace last week's drafts; Drive
+    keeps the old one in the file's version history, and links stay the same)."""
     from googleapiclient.http import MediaFileUpload
+    q = (f"name = '{name.replace(chr(92), chr(92) * 2).replace(chr(39), chr(92) + chr(39))}' "
+         f"and '{parent_id}' in parents and trashed = false")
+    found = drive.files().list(q=q, fields="files(id)", supportsAllDrives=True,
+                               includeItemsFromAllDrives=True).execute(
+                                   num_retries=DRIVE_RETRIES).get("files", [])
+    media = MediaFileUpload(path, mimetype=mime, resumable=True)
+    if found:
+        return drive.files().update(fileId=found[0]["id"], media_body=media,
+                                    fields="id,webViewLink", supportsAllDrives=True
+                                    ).execute(num_retries=DRIVE_RETRIES)
     body = {"name": name, "parents": [parent_id]}
     if as_google_doc:
         body["mimeType"] = "application/vnd.google-apps.document"
-    media = MediaFileUpload(path, mimetype=mime, resumable=True)
     return drive.files().create(body=body, media_body=media, fields="id,webViewLink",
                                 supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)
 
@@ -505,7 +517,9 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
         vertical = os.path.join(workdir, f"clip{clip['n']}_vertical.mp4")
         if not os.path.exists(vertical):            # shared by both styles
             import reframe
-            stats = reframe.render_vertical(video_path, clip["start"], dur, vertical)
+            sheet = os.path.join(os.path.dirname(out_path), f"camera check reel {clip['n']}.jpg")
+            stats = reframe.render_vertical(video_path, clip["start"], dur, vertical,
+                                            sheet_path=sheet)
             clip["reframe"] = stats
             clip["crop_center"] = stats.get("mean_cx", 0.5)
             log(f"    camera: {stats}")
@@ -729,6 +743,9 @@ def process(drive, sermon, brand, state):
         for name in sorted(os.listdir(fcp_dir)):
             mime = "application/xml" if name.endswith(".fcpxml") else "application/x-subrip"
             upload(drive, os.path.join(fcp_dir, name), name, fcp_folder, mime)
+        for name in sorted(os.listdir(out_dir)):
+            if name.startswith("camera check"):
+                upload(drive, os.path.join(out_dir, name), name, folder, "image/jpeg")
         log(f"  plan: {doc.get('webViewLink')}")
 
     state.append({"drive_file_id": sermon["id"], "drive_file_name": sermon["name"],

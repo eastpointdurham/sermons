@@ -218,5 +218,25 @@ class _BrokenDrive:
 T.add_thumbnail(_BrokenDrive(), None, {"series": series}, d1, "vid", "folder")
 check("thumbnail failure never raises", True)
 
+# camera: following the speaker ------------------------------------------------
+import reframe as RF
+samples = []
+for k in range(100):
+    i = k * 6
+    cands = []
+    x = 0.30 + 0.004 * k                                    # preacher walks right
+    if not 40 <= k < 48:                                    # ...and turns away for a while
+        cands.append((x, 0.35, 0.05, 0.9))
+    cands.append((0.80, 0.62, 0.04, 0.7))                   # someone in the front row
+    if k == 0:
+        cands.append((0.10, 0.30, 0.20, 0.8))               # a big one-frame false hit
+    samples.append((i, cands))
+track = RF.pick_speaker(samples)
+xs = [c[0] for _, c in track]
+check("camera follows the preacher, not the front row", all(x < 0.75 for x in xs))
+check("camera ignores the one-frame false face", all(x > 0.2 for x in xs))
+check("camera keeps him across the gap", min(xs) < 0.35 and max(xs) > 0.65)
+check("no speaker when nobody is seen", RF.pick_speaker([(0, []), (6, [])]) == [])
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
