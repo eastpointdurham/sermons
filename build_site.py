@@ -277,6 +277,7 @@ def polish_transcript(raw_text):
                     "- Organize into natural paragraphs (every 4-8 sentences)\n"
                     "- Remove filler words: um, uh, you know, kind of, sort of, like, right, okay so\n"
                     "- Remove false starts and immediate repetitions\n"
+                    "- Keep scripture readings word for word, including one read before the sermon\n"
                     "- Keep ALL theological content and ideas intact â do not summarize or cut\n"
                     "- Preserve the preacher's natural voice and tone\n"
                     "- The church is Eastpoint Church (one word) in Durham, NC\n"

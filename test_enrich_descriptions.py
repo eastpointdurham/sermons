@@ -168,6 +168,8 @@ check("refusal leaves description alone",
 import transcript_text as TT
 check("church name joined", TT.fix_names("Good morning, East Point Church. East point, east-Point."),
       "Good morning, Eastpoint Church. Eastpoint, Eastpoint.")
+check("italic markers stripped", TT.tidy("A prayer from *Every Moment Holy* - 2 * 3"),
+      "A prayer from Every Moment Holy - 2 * 3")
 check("unrelated words kept", TT.fix_names("the east pointed north"), "the east pointed north")
 raw = "# Sermon Transcript: Mark\n\n=====\n\nGood morning, **East Point**.\n\n\n\nSecond para."
 check("markdown stripped", TT.tidy(raw), "Sermon Transcript: Mark\n\nGood morning, Eastpoint.\n\nSecond para.")

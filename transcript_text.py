@@ -27,6 +27,7 @@ def tidy(text):
             continue
         line = _HEADING.sub("", line)
         line = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), line)
+        line = re.sub(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])", r"\1", line)   # *italics*
         out.append(line.rstrip())
     return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
 
