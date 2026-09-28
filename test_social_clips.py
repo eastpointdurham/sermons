@@ -111,9 +111,15 @@ with tempfile.TemporaryDirectory() as tmp:
     check("end card ink background", Image.open(card).getpixel((20, 20)) == (26, 26, 26))
     b = rd.brush_stroke(600, 12, brand["sage"], seed=1)
     check("brush stroke drawn", b.width > 500 and b.getbbox() is not None)
-    check("balanced hook wrap", rd.balanced_wrap("THE GOSPEL DOESN'T START AT CHRISTMAS",
-                                                 rd.font("bold", rd.HOOK_SIZE, fonts), rd.HOOK_MAX_W)
-          in (["THE GOSPEL DOESN'T", "START AT CHRISTMAS"], ["THE GOSPEL DOESN'T START AT CHRISTMAS"]))
+    # Line breaks depend on the font (Oakes Grotesk in CI, Archivo/DejaVu elsewhere),
+    # so check the shape: fewest lines, every line fits, no word lost.
+    hook = "THE GOSPEL DOESN'T START AT CHRISTMAS"
+    hf = rd.font("bold", rd.HOOK_SIZE, fonts)
+    wrapped = rd.balanced_wrap(hook, hf, rd.HOOK_MAX_W)
+    check("balanced hook wrap",
+          " ".join(wrapped) == hook
+          and len(wrapped) == len(rd.wrap_words(hook.split(), hf, rd.HOOK_MAX_W))
+          and all(rd.text_width(l, hf) <= rd.HOOK_MAX_W for l in wrapped))
 
     fcpx = fx.build_fcpxml("Sermon-9-20-26.mov", fx.media_url_for("Sermon-9-20-26.mov"), 2086.6, 24,
                           1920, 1080, [clip], brand, "Oakes Grotesk", sc.caption_chunks, "Reels")

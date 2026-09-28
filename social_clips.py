@@ -163,6 +163,10 @@ def drive_service():
     return build("drive", "v3", credentials=c, cache_discovery=False)
 
 
+# Retries for transient network errors (dropped TLS connections, 5xx, rate limits).
+DRIVE_RETRIES = 5
+
+
 def list_folder(drive, folder_id):
     out, token = [], None
     while True:
@@ -171,7 +175,7 @@ def list_folder(drive, folder_id):
             fields="nextPageToken, files(id,name,mimeType,size,createdTime,parents)",
             pageSize=200, supportsAllDrives=True, includeItemsFromAllDrives=True,
             pageToken=token,
-        ).execute()
+        ).execute(num_retries=DRIVE_RETRIES)
         out += resp.get("files", [])
         token = resp.get("nextPageToken")
         if not token:
@@ -185,7 +189,7 @@ def download(drive, file_id, dest):
         dl = MediaIoBaseDownload(fh, req, chunksize=64 * 1024 * 1024)
         done = False
         while not done:
-            status, done = dl.next_chunk()
+            status, done = dl.next_chunk(num_retries=DRIVE_RETRIES)
             if status:
                 log(f"    {int(status.progress() * 100)}%")
 
@@ -194,12 +198,12 @@ def ensure_folder(drive, name, parent_id):
     q = (f"name = '{name.replace(chr(39), chr(92) + chr(39))}' and '{parent_id}' in parents "
          "and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
     found = drive.files().list(q=q, fields="files(id)", supportsAllDrives=True,
-                               includeItemsFromAllDrives=True).execute().get("files", [])
+                               includeItemsFromAllDrives=True).execute(num_retries=DRIVE_RETRIES).get("files", [])
     if found:
         return found[0]["id"]
     return drive.files().create(
         body={"name": name, "mimeType": "application/vnd.google-apps.folder", "parents": [parent_id]},
-        fields="id", supportsAllDrives=True).execute()["id"]
+        fields="id", supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)["id"]
 
 
 def upload(drive, path, name, parent_id, mime, as_google_doc=False):
@@ -209,7 +213,7 @@ def upload(drive, path, name, parent_id, mime, as_google_doc=False):
         body["mimeType"] = "application/vnd.google-apps.document"
     media = MediaFileUpload(path, mimetype=mime, resumable=True)
     return drive.files().create(body=body, media_body=media, fields="id,webViewLink",
-                                supportsAllDrives=True).execute()
+                                supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)
 
 
 # --------------------------------------------------------------------------
@@ -693,11 +697,14 @@ def process(drive, sermon, brand, state):
             log(f"  [local] wrote {dest}")
             return None
 
+        # Rendering takes most of an hour; Google drops the idle connection by then
+        # (ssl.SSLEOFError on the next request), so start the uploads on a fresh one.
+        drive = drive_service()
         parent = os.environ.get("SOCIAL_DRAFTS_FOLDER_ID")
         if not parent:
             sermons_parent = drive.files().get(
                 fileId=os.environ.get("SERMON_FOLDER_ID", "1SCMlaqWua24gPPU-Z7yF19pisehp3xu_"),
-                fields="parents", supportsAllDrives=True).execute()["parents"][0]
+                fields="parents", supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)["parents"][0]
             parent = ensure_folder(drive, "Social Drafts", sermons_parent)
         folder_name = f"{stamp} {meta.get('title') or 'Sermon'}"[:120]
         folder = ensure_folder(drive, folder_name, parent)
