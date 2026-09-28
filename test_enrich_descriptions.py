@@ -134,5 +134,35 @@ fv3 = FakeVideos({}, found=False)
 check("missing video handled", E.update_video(FakeYT(fv3), "gone", "d", []), False)
 check("no update attempted for missing video", fv3.updated_body, None)
 
+# compose(): current models reply with a thinking block before the text, and may
+# decline. Use a fake client so no API call is made.
+from types import SimpleNamespace as NS
+
+
+class FakeClaude:
+    def __init__(self, content, stop_reason="end_turn"):
+        self.reply = NS(content=content, stop_reason=stop_reason)
+        self.sent = None
+        self.beta = NS(messages=NS(create=self._create))
+
+    def _create(self, **kwargs):
+        self.sent = kwargs
+        return self.reply
+
+
+long_talk = "Jesus calls fishermen. " * 2000 + "THE ENDING"
+sermon = {"title": "Are you all in?", "scripture": "Mark 1:14\u201320",
+          "preacher": "Peter Frey", "transcript": long_talk}
+fc = FakeClaude([NS(type="thinking", thinking=""),
+                 NS(type="text", text="DESCRIPTION:\nA real summary.\n\nTAGS:\nMark, discipleship")])
+desc, tags = E.compose(sermon, fc)
+check("reads text after thinking block", desc.startswith("A real summary."), True)
+check("tags parsed", tags, ["Mark", "discipleship"])
+check("whole transcript sent", "THE ENDING" in fc.sent["messages"][0]["content"], True)
+check("model is current", fc.sent["model"], E.MODEL)
+check("refusal fallback on", fc.sent.get("fallbacks"), "default")
+check("refusal leaves description alone",
+      E.compose(sermon, FakeClaude([], stop_reason="refusal")), (None, None))
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

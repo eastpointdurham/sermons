@@ -38,12 +38,13 @@ except ImportError:
 
 NEW_SERMONS_FILE = "new_sermons.json"
 CHURCH_LINE = "Eastpoint Church · Durham, NC · https://eastpointdurham.com"
-MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-latest")
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5")
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 
-# Enough transcript for the model to work from without paying for a whole hour
-# of speech on every run.
-TRANSCRIPT_CHARS = 14000
+# A whole sermon is ~8k tokens, so send all of it: the summary should cover
+# where the sermon lands, not just how it opens. The cap only guards against a
+# runaway transcript (e.g. a recording left running after the service).
+TRANSCRIPT_CHARS = 200000
 
 
 def youtube_service():
@@ -132,9 +133,12 @@ def compose(sermon, client):
     if not transcript:
         return None, None
 
-    msg = client.messages.create(
+    msg = client.beta.messages.create(
         model=MODEL,
-        max_tokens=1200,
+        max_tokens=16000,      # room for adaptive thinking before the description
+        # If a safety classifier declines, re-run on Anthropic's recommended model.
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
         messages=[{
             "role": "user",
             "content": PROMPT.format(
@@ -145,7 +149,10 @@ def compose(sermon, client):
             ),
         }],
     )
-    description, tags = parse_model_output(msg.content[0].text)
+    if msg.stop_reason == "refusal":
+        return None, None
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    description, tags = parse_model_output(text)
     if not description:
         return None, None
 
