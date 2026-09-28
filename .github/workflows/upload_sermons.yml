@@ -67,6 +67,9 @@ jobs:
           PODCAST_FOLDER_ID: 1azEoTNVdrd1oLnBAsCMZqNby4T4417qz
           PLANNING_DOC_ID: 1LZDGqW9G9uNWCCwMjv8u3kwQHlE6azpLQz96ynHOM6o
           PLANNING_DOC_START_YEAR: "2025"
+          # Earlier sermons were uploaded by hand; don't duplicate them.
+          # Lower this (or run manually) to back-fill a specific Sunday.
+          UPLOAD_SINCE: ${{ vars.UPLOAD_SINCE || '2026-10-04' }}
           MAX_PER_RUN: ${{ github.event.inputs.max_per_run || '1' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: python upload_sermon.py

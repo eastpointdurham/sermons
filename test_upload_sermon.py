@@ -149,5 +149,12 @@ check("tags include book", "Ephesians" in tags, True)
 check("tags no duplicates", len(tags), len(set(t.lower() for t in tags)))
 check("tags within YouTube 500-char budget", len(",".join(tags)) <= 500, True)
 
+# upload cutoff
+from datetime import date as _d
+check("no cutoff allows all", U.on_or_after_cutoff(_d(2026, 8, 9), ""), True)
+check("before cutoff skipped", U.on_or_after_cutoff(_d(2026, 9, 27), "2026-10-04"), False)
+check("on cutoff kept", U.on_or_after_cutoff(_d(2026, 10, 4), "2026-10-04"), True)
+check("after cutoff kept", U.on_or_after_cutoff(_d(2026, 10, 11), "2026-10-04"), True)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 new_sermons.json
+social/fonts/
+social_out/
+Claude outputs/

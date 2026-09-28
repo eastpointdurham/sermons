@@ -1,0 +1,88 @@
+name: Make Social Reels
+
+# After a sermon is uploaded, cut 4-6 draft vertical reels in Eastpoint's brand
+# style and write a content plan. Everything lands in the Drive "Social Drafts"
+# folder for a person to review. Nothing is posted automatically.
+
+on:
+  workflow_run:
+    workflows: ["Upload Sermons to YouTube"]
+    types: [completed]
+  schedule:
+    # Backstop: Sunday-Tuesday afternoons/evenings, off-minute on purpose.
+    - cron: "37 17-23/3 * * 0-2"
+  workflow_dispatch:
+    inputs:
+      drive_file_id:
+        description: "Only this Drive file (re-run a specific sermon)"
+        required: false
+        default: ""
+      layout:
+        description: "fill (speaker cropped) or framed (full shot in a frame)"
+        required: false
+        default: "fill"
+
+permissions:
+  contents: write        # to commit social_clips.json
+
+concurrency:
+  group: social-reels
+  cancel-in-progress: false
+
+jobs:
+  reels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main       # pick up uploaded_sermons.json from the upload run
+
+      - name: Install ffmpeg and fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fontconfig
+          mkdir -p social/fonts
+          curl -fsSL -o "social/fonts/Archivo.ttf" \
+            "https://github.com/google/fonts/raw/main/ofl/archivo/Archivo%5Bwdth%2Cwght%5D.ttf" \
+            || echo "Archivo download failed; captions fall back to the default font"
+          ffmpeg -version | head -1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt opencv-python-headless
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          df -h / | tail -1
+
+      - name: Make reels
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SERMON_FOLDER_ID: 1SCMlaqWua24gPPU-Z7yF19pisehp3xu_
+          # Wes's shared sermon folder; the team uploads to either place.
+          SOCIAL_EXTRA_FOLDER_IDS: 1GoIg48SOisgrSV6Fq9RAip_e4L8mcGp_
+          SOCIAL_DRAFTS_FOLDER_ID: ${{ vars.SOCIAL_DRAFTS_FOLDER_ID }}
+          SOCIAL_ONLY_FILE_ID: ${{ github.event.inputs.drive_file_id }}
+          SOCIAL_LAYOUT: ${{ github.event.inputs.layout || 'fill' }}
+          WHISPER_MODEL: small.en
+        run: python social_clips.py
+
+      - name: Commit state
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add social_clips.json 2>/dev/null || true
+          git diff --staged --quiet && echo "No changes." || (
+            git commit -m "Record social reels $(date +'%Y-%m-%d')" &&
+            git pull --rebase &&
+            git push
+          )

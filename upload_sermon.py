@@ -45,6 +45,9 @@ PLANNING_DOC_ID   = os.environ.get("PLANNING_DOC_ID", "1LZDGqW9G9uNWCCwMjv8u3kwQ
 START_YEAR        = int(os.environ.get("PLANNING_DOC_START_YEAR", "2025"))
 MAX_PER_RUN       = int(os.environ.get("MAX_PER_RUN", "1"))
 DRY_RUN           = os.environ.get("DRY_RUN") == "1"
+# Recordings dated before this are ignored, so turning the uploader on does not
+# re-upload sermons that already went to YouTube by hand. YYYY-MM-DD.
+UPLOAD_SINCE      = os.environ.get("UPLOAD_SINCE", "")
 
 CHURCH_NAME = "Eastpoint Church"
 DEFAULT_PREACHER = "Peter Frey"
@@ -134,6 +137,16 @@ def is_sermon_video(name, mime_type):
     if not re.search(r"sermon", name, re.I):
         return False
     return parse_date_from_filename(name) is not None
+
+
+def on_or_after_cutoff(service_date, since):
+    """True when there is no cutoff, or the service date is on/after it."""
+    if not since:
+        return True
+    try:
+        return service_date >= date.fromisoformat(since)
+    except ValueError:
+        raise SystemExit(f"UPLOAD_SINCE must be YYYY-MM-DD, got {since!r}")
 
 
 def match_doc_date_line(text):
@@ -414,7 +427,8 @@ def main():
               if is_sermon_video(f["name"], f.get("mimeType"))]
     videos.sort(key=lambda f: f["createdTime"])
 
-    todo = [v for v in videos if v["id"] not in done_ids]
+    todo = [v for v in videos if v["id"] not in done_ids
+            and on_or_after_cutoff(parse_date_from_filename(v["name"]), UPLOAD_SINCE)]
     if not todo:
         print("No new sermon videos.")
         return 0

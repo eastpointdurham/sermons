@@ -1,0 +1,18 @@
+{
+  "font_family": "Oakes Grotesk",
+  "ink": "#1a1a1a",
+  "offwhite": "#f5f5f5",
+  "sage": "#778472",
+  "cream": "#f2e8da",
+  "gold": "#d3b27e",
+  "charcoal": "#43433f",
+  "teal": "#508484",
+  "brick": "#8e4a49",
+  "end_card": [
+    "EASTPOINT CHURCH",
+    "SUNDAYS AT 10AM",
+    "Oak Grove Elementary, Durham",
+    "eastpointdurham.com"
+  ],
+  "fallback_font": "Archivo"
+}
