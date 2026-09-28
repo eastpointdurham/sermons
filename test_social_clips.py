@@ -234,27 +234,31 @@ with tempfile.TemporaryDirectory() as tmp:
     check("thumbnail without a planning entry", os.path.exists(os.path.join(tmp, "n.jpg")))
 
 
-# alternate weeks: preacher, then community; either stands in for the other
-check("preacher on even weeks", T.photo_turn(_date(2026, 10, 4)) == "preacher")      # ISO week 40
-check("community on odd weeks", T.photo_turn(_date(2026, 10, 11)) == "community")      # ISO week 41
+# photo choice: the preacher; community only when the preacher has none
 _tree = {"root": [{"id": "pf", "name": "Peter Frey", "mimeType": T.FOLDER_MIME},
                   {"id": "cm", "name": "Community", "mimeType": T.FOLDER_MIME},
                   {"id": "x", "name": "stray.jpg", "mimeType": "image/jpeg"}],
-         "pf": [{"id": "p1", "name": "Peter 1.jpg"}], "cm": [{"id": "c1", "name": "Band.jpg"}]}
+         "pf": [{"id": "p1", "name": "Peter 1.jpg"}],
+         "cm": [{"id": "c1", "name": "Band.jpg"}, {"id": "c2", "name": "Hug.jpg"},
+                {"id": "c3", "name": "Hands.jpg"}]}
 _real_list = sc.list_folder
 sc.list_folder = lambda drive, fid: _tree.get(fid, [])
 try:
-    check("preacher week uses his folder",
-          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 4))["id"] == "p1")
-    check("community week uses Community",
-          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 11))["id"] == "c1")
+    check("preacher every week", T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 4))["id"] == "p1"
+          and T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 11))["id"] == "p1")
     check("guest with no folder gets a community photo",
-          T.choose_photo(None, "root", "Brentley Wright", _date(2026, 10, 4))["id"] == "c1")
-    _tree["cm"] = []
-    check("empty Community falls back to the preacher",
-          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 11))["id"] == "p1")
+          T.choose_photo(None, "root", "Brentley Wright", _date(2026, 10, 11))["id"].startswith("c"))
+    _opts = T.community_options(None, "root", _date(2026, 10, 4))
+    check("two community backup options", len(_opts) == 2 and len({o["id"] for o in _opts}) == 2)
+    check("backups skip the photo already used",
+          all(o["id"] != "c1" for o in T.community_options(None, "root", _date(2026, 10, 4), skip="c1")))
+    check("backups change week to week", T.community_options(None, "root", _date(2026, 10, 4))
+          != T.community_options(None, "root", _date(2026, 10, 11)))
     check("loose photos in the root are never used",
-          T.choose_photo(None, "root", "Nobody", _date(2026, 10, 11)) is None)
+          T.choose_photo(None, "root", "Nobody", _date(2026, 10, 4))["id"].startswith("c"))
+    _tree["cm"] = []
+    check("no community folder photos, no backups", T.community_options(None, "root", _date(2026, 10, 4)) == [])
+    check("nothing to choose gives no photo", T.choose_photo(None, "root", "Nobody", _date(2026, 10, 4)) is None)
 finally:
     sc.list_folder = _real_list
 

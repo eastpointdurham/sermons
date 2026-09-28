@@ -5,8 +5,9 @@ YouTube thumbnails in the sermon series' look, drawn with Pillow.
 1280x720, led by the series art (exported from Canva) and in its own colours
 (sampled from that art): a full-bleed photo, shaded into the series' ground on
 the left and bottom, with the series lockup top left and the sermon title and
-scripture bottom left. The photo alternates weekly between the preacher and a
-community moment, from hand-picked folders only. With no photo: the lockup large
+scripture bottom left. The photo is the week's preacher (a community moment
+when a guest has no photos); community versions are saved alongside in Drive
+as ready-made alternatives. Hand-picked folders only. With no photo: the lockup large
 and centred, the title below. With no series art yet, the brand colours and
 sunburst stand in.
 
@@ -69,35 +70,47 @@ def pick_series_art(files, series):
 COMMUNITY = "Community"
 
 
-def photo_turn(service_date):
-    """Alternate weeks: the preacher on even ISO weeks, the community on odd."""
-    return "preacher" if service_date.isocalendar()[1] % 2 == 0 else "community"
+BACKUP_OPTIONS = 2                                  # community thumbnails made alongside
+
+
+def _photo_folders(drive, photos_root):
+    return {_norm(f["name"]): f for f in sc.list_folder(drive, photos_root)
+            if f.get("mimeType") == FOLDER_MIME}
 
 
 def choose_photo(drive, photos_root, preacher, service_date):
-    """This week's photo from Thumbnail Photos/<preacher> or Thumbnail Photos/Community,
-    alternating; either folder stands in when the other has nothing (a guest with
-    no photos gets a community one). Only these hand-picked folders are used."""
-    folders = {_norm(f["name"]): f for f in sc.list_folder(drive, photos_root)
-               if f.get("mimeType") == FOLDER_MIME}
-    order = [_norm(preacher), _norm(COMMUNITY)]
-    if photo_turn(service_date) == "community":
-        order.reverse()
-    for key in order:
+    """The thumbnail photo: from Thumbnail Photos/<preacher>, or Thumbnail
+    Photos/Community when the preacher has none (a guest). Only these hand-picked
+    folders are used."""
+    folders = _photo_folders(drive, photos_root)
+    for key in (_norm(preacher), _norm(COMMUNITY)):
         if key and key in folders:
-            photo = pick_photo(sc.list_folder(drive, folders[key]["id"]), service_date, every=2)
+            photo = pick_photo(sc.list_folder(drive, folders[key]["id"]), service_date)
             if photo:
                 return photo
     return None
 
 
-def pick_photo(files, service_date, every=1):
-    """Rotate through the folder (a step every `every` weeks), so reruns pick the
-    same photo."""
+def community_options(drive, photos_root, service_date, n=BACKUP_OPTIONS, skip=None):
+    """n community photos, rotating weekly, for backup thumbnails."""
+    folder = _photo_folders(drive, photos_root).get(_norm(COMMUNITY))
+    if not folder:
+        return []
+    photos = sorted((f for f in sc.list_folder(drive, folder["id"])
+                     if IMAGE_RE.search(f["name"]) and f.get("id") != skip),
+                    key=lambda f: f["name"])
+    if not photos:
+        return []
+    start = service_date.toordinal() // 7 * n
+    return [photos[(start + i) % len(photos)] for i in range(min(n, len(photos)))]
+
+
+def pick_photo(files, service_date):
+    """Rotate through the folder a week at a time, so reruns pick the same photo."""
     photos = sorted((f for f in files if IMAGE_RE.search(f["name"])), key=lambda f: f["name"])
     if not photos:
         return None
-    return photos[(service_date.toordinal() // 7 // every) % len(photos)]
+    return photos[(service_date.toordinal() // 7) % len(photos)]
 
 
 # --------------------------------------------------------------------------
@@ -364,9 +377,8 @@ def make(drive, entry, service_date, sermons_folder, workdir):
         print(f"    ! no series art for {series_key(series) or 'this sermon'!r} "
               f"in Series Graphics; using the brand mark", flush=True)
 
-    photo = choose_photo(drive, _folder(drive, "THUMBNAIL_PHOTOS_FOLDER_ID", "Thumbnail Photos",
-                                        sermons_folder),
-                         (entry or {}).get("preacher") or "", service_date)
+    photos_root = _folder(drive, "THUMBNAIL_PHOTOS_FOLDER_ID", "Thumbnail Photos", sermons_folder)
+    photo = choose_photo(drive, photos_root, (entry or {}).get("preacher") or "", service_date)
     if photo:
         photo_path = os.path.join(workdir, "photo" + os.path.splitext(photo["name"])[1])
         sc.download(drive, photo["id"], photo_path)
@@ -377,9 +389,22 @@ def make(drive, entry, service_date, sermons_folder, workdir):
     out = render(entry, service_date, brand, sc.FONTS_DIR,
                  os.path.join(workdir, f"Thumbnail {service_date.isoformat()}.jpg"),
                  photo_path, art_path)
-    up = sc.upload(drive, out, os.path.basename(out),
-                   _folder(drive, "THUMBNAILS_FOLDER_ID", "Thumbnails", sermons_folder),
-                   "image/jpeg")
+    thumbs_folder = _folder(drive, "THUMBNAILS_FOLDER_ID", "Thumbnails", sermons_folder)
+    up = sc.upload(drive, out, os.path.basename(out), thumbs_folder, "image/jpeg")
+
+    # community versions as ready-made alternatives; never set on YouTube
+    for i, alt in enumerate(community_options(drive, photos_root, service_date,
+                                              skip=photo["id"] if photo else None), 1):
+        try:
+            alt_path = os.path.join(workdir, f"alt{i}" + os.path.splitext(alt["name"])[1])
+            sc.download(drive, alt["id"], alt_path)
+            name = f"Thumbnail {service_date.isoformat()} (community option {i}).jpg"
+            render(entry, service_date, brand, sc.FONTS_DIR, os.path.join(workdir, name),
+                   alt_path, art_path)
+            sc.upload(drive, os.path.join(workdir, name), name, thumbs_folder, "image/jpeg")
+            print(f"    backup option {i}: {alt['name']}", flush=True)
+        except Exception as e:
+            print(f"    ! backup option {i} skipped: {e}", flush=True)
     return out, up.get("webViewLink")
 
 

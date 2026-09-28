@@ -82,7 +82,8 @@ On (the `AUTO_THUMBNAILS` repository variable is `1`; set it to anything else to
 pause). `thumbnail.py` makes each draft's 1280×720 thumbnail, led by the series art
 and in its colours: a full-bleed photo shaded into the series' ground on the left,
 the series lockup top left, the sermon title and scripture bottom left. The photo
-alternates weekly: the preacher on even ISO weeks, a community moment on odd ones.
+is the week's preacher; two community versions are saved next to it in Drive ›
+Thumbnails as "(community option 1/2)", ready to swap in by hand in YouTube Studio.
 
 It reads three Drive folders next to "Sermons":
 
@@ -91,8 +92,7 @@ It reads three Drive folders next to "Sermons":
 - **Thumbnail Photos**: `Peter Frey` (one folder per preacher, named as in the
   planning doc) and `Community`. Only photos in these folders are ever used, so put
   in approved shots only: people who are happy to be on YouTube, no children as the
-  focus. A guest with no folder gets a community photo; an empty folder hands over
-  to the other one.
+  focus. A guest with no folder gets a community photo.
 - **Thumbnails**: a copy of every thumbnail made.
 
 YouTube only accepts custom thumbnails from a phone-verified channel. To remake one:
