@@ -62,9 +62,11 @@ def font(weight, size, fonts_dir):
     path = path or SYSTEM_FALLBACK[weight]
     f = ImageFont.truetype(path, size)
     if path.endswith("Archivo.ttf"):          # variable font: pick the weight
-        try:
-            f.set_variation_by_axes([100, {"bold": 700, "semibold": 600,
-                                           "medium": 500, "regular": 400}[weight]])
+        want = {"weight": {"bold": 700, "semibold": 600, "medium": 500, "regular": 400}[weight],
+                "width": 100}
+        try:                                   # axes in the font's own order (Weight, Width)
+            f.set_variation_by_axes([want.get(a["name"].decode().lower(), a["default"])
+                                     for a in f.get_variation_axes()])
         except Exception:
             pass
     _font_cache[key] = f

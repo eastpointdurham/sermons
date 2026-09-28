@@ -160,6 +160,12 @@ with mock.patch.object(sc, "list_folder", side_effect=lambda drive, fid: main_fi
         todo = sc.find_new_sermons(None, [])
         check("manual re-run ignores age", [t["id"] for t in todo] == ["old"])
 
+# the fallback variable font must come out bold and normal width, not thin and wide
+_fb = rd.font("bold", 80, fonts) if os.path.exists(os.path.join(fonts, "Archivo.ttf")) else None
+if _fb is not None and not rd.using_brand_font(fonts):
+    check("fallback font is bold", abs(_fb.getlength("ALL IN") - rd.font("regular", 80, fonts).getlength("ALL IN")) > 5
+          and _fb.getlength("MMMM") < 450)
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date
