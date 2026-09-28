@@ -166,6 +166,18 @@ if _fb is not None and not rd.using_brand_font(fonts):
     check("fallback font is bold", abs(_fb.getlength("ALL IN") - rd.font("regular", 80, fonts).getlength("ALL IN")) > 5
           and _fb.getlength("MMMM") < 450)
 
+# the drafts folder is named for the sermon title, not the whole YouTube title
+_cwd_meta = sc.HERE
+with tempfile.TemporaryDirectory() as _d:
+    sc.HERE = _d
+    json.dump([{"service_date": "2026-09-27", "video_id": "v",
+                "title": "Are you all in? | Mark 1:14–20 | Peter Frey | Eastpoint Church Durham"}],
+              open(os.path.join(_d, "uploaded_sermons.json"), "w"))
+    _m = sc.sermon_meta(__import__("datetime").date(2026, 9, 27))
+    sc.HERE = _cwd_meta
+check("meta title is the sermon title", _m["title"] == "Are you all in?" and _m["scripture"] == "Mark 1:14–20"
+      and _m["preacher"] == "Peter Frey")
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date

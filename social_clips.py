@@ -269,8 +269,12 @@ def sermon_meta(service_date):
     if os.path.exists(path):
         for s in json.load(open(path)):
             if s.get("service_date") == service_date.isoformat():
-                return {"title": s.get("title", ""), "youtube_id": s.get("video_id", "")}
-    return {"title": "", "youtube_id": ""}
+                # the YouTube title is "Title | Scripture | Preacher | Eastpoint Church Durham"
+                parts = [p.strip() for p in s.get("title", "").split("|")]
+                return {"title": parts[0], "youtube_id": s.get("video_id", ""),
+                        "scripture": parts[1] if len(parts) > 1 else "",
+                        "preacher": parts[2] if len(parts) > 2 else ""}
+    return {"title": "", "youtube_id": "", "scripture": "", "preacher": ""}
 
 
 # --------------------------------------------------------------------------
