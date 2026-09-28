@@ -58,6 +58,16 @@ for line, want_title, want_scripture in [
     ("Mar. 29 - Palm Sunday - Luke 19:28-42", "Palm Sunday", "Luke 19:28–42"),
     ("Nov. 30 - Advent - Hope in the Midst of Darkness  - Isaiah 9:1-7 NIV",
      "Advent - Hope in the Midst of Darkness", "Isaiah 9:1–7"),
+    # who is preaching stays out of the title
+    ("Oct. 4 - Guest Preacher - Brentley Wright- Acts 3:1-10 - \u201cMore Than What I Asked For.\u201d ",
+     "More Than What I Asked For", "Acts 3:1–10"),
+    ("May 3 - Isaiah 43 - Guest Preacher (Brentley Wright) The God who Redeems",
+     "The God who Redeems", "Isaiah 43"),
+    ("Mar. 22 - - Kevin Preaching - Colossians 4:7-18 - Christ in Community",
+     "Christ in Community", "Colossians 4:7–18"),
+    ("June 14 - James 1:5-7 – “Hearing From God” (Guest Preacher - Chris Hankins)",
+     "Hearing From God", "James 1:5–7"),
+    ("Oct. 11 - Mark 1:21-34 - ", "", "Mark 1:21–34"),
 ]:
     hit = U.match_doc_date_line(line)
     assert hit, line
@@ -117,6 +127,12 @@ check("then Church", _t(58).endswith("| Eastpoint"), True)
 check("then Eastpoint", _t(70).endswith("| Peter Frey"), True)
 check("sermon title never cut while the name can give way", _t(70).startswith("T" * 70), True)
 check("every length within 100", all(len(_t(n)) <= 100 for n in range(0, 160)), True)
+
+# A planning-doc line with scripture but no sermon title yet.
+untitled = U.build_title({"title": "", "scripture": "Mark 1:21–34", "series": "",
+                          "preacher": "Peter Frey"}, date(2026, 10, 11))
+check("untitled uses the date, not the scripture twice", untitled,
+      "Sunday Service October 11, 2026 | Mark 1:21–34 | Peter Frey | Eastpoint Church Durham")
 
 # No planning-doc entry at all.
 none_title = U.build_title(None, date(2026, 9, 6))

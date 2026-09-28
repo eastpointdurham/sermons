@@ -207,11 +207,18 @@ def split_entry(rest):
         scripture = re.sub(r"\s+", " ", m.group(1)).strip()
         s = s[:m.start(1)] + " " + s[m.end(1):]
 
+    # who is preaching is not part of the title (extract_preacher reads it)
+    s = re.sub(r"guest\s+preacher\s*[-–—:]*\s*(\([^)]*\)|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)?",
+               " ", s, flags=re.I)
+    s = re.sub(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+[Pp]reaching\b", " ", s)
+
     title = re.sub(r"\([^)]*\)", " ", s)
     title = title.replace("\u201c", "").replace("\u201d", "").replace('"', "")
     title = re.sub(r"\s*[-–—]\s*", " - ", title)
+    title = re.sub(r"(\s-\s*)+-", " -", title)              # "a - - b" left by removals
     title = re.sub(r"^[\s\-–—:]+|[\s\-–—:]+$", "", title)
     title = re.sub(r"\s{2,}", " ", title).strip()
+    title = re.sub(r"(?<!\.)\.$", "", title)                  # "Asked For." but keep "..."
     return title, normalise_scripture(scripture)
 
 
@@ -287,9 +294,7 @@ def build_title(entry, service_date):
     "Church", then "Eastpoint", and only then shorten the sermon title."""
     if entry and entry["title"]:
         head = entry["title"]
-    elif entry and entry["scripture"]:
-        head = entry["scripture"]
-    else:
+    else:       # not the scripture: it is already the next segment
         head = "Sunday Service " + service_date.strftime("%B %-d, %Y")
 
     # Always emit the three segments build_site.py reads. It takes parts[1] as
@@ -468,6 +473,9 @@ def main():
         elif not entry["scripture"]:
             print(f"  ! No scripture reference for {service_date}; the title will "
                   f"have an empty middle segment. Fix in Studio before publishing.")
+        if entry and not entry["title"]:
+            print(f"  ! No sermon title in the planning doc for {service_date}; using "
+                  f"\"Sunday Service ...\". Fix in Studio before publishing.")
 
         title = build_title(entry, service_date)
         description = build_description(entry, service_date)
