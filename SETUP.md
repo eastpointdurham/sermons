@@ -7,7 +7,7 @@ Four GitHub Actions workflows run the pipeline. Each Sunday recording in the Dri
    podcast MP3 in Drive. Nothing is published.
 2. **Update Sermon Archive** (`build_site.py`, hourly): the draft is transcribed and a
    transcript doc is filed. Its YouTube description is rewritten from the transcript.
-3. **Make Social Reels** (`social_clips.py`): 4 to 6 draft vertical reels plus a
+3. **Make Social Reels** (`social_clips.py`): 2 to 3 draft vertical reels, each in two looks, plus a
    content plan, saved to Drive › Social Drafts › `<date> <title>`. Nothing is posted.
 
 ## One-time setup
@@ -68,9 +68,12 @@ Drive › Social Drafts › `<date> <title>`:
 - Brand fonts: the Oakes Grotesk files are downloaded at run time from the private
   Drive font folder (never committed; this repo is public). Point the
   `SOCIAL_FONTS_FOLDER_ID` variable elsewhere if the folder moves.
-- The speaker crop follows Peter's face. When he moves too much for one vertical
-  crop, the reel switches to the framed layout (full shot on an ink background).
-  Run the workflow with `layout = framed` to force it for a whole sermon.
+- Looks: `"style"` in `social/brand.json` is `both` (every reel rendered as
+  "(editorial)" and "(bold)"; post whichever fits), or `editorial` / `bold` for one.
+- Camera: `reframe.py` works like a camera operator. It follows the speaker's face,
+  holds still for small moves, glides when he walks, and zooms in only as far as the
+  source allows (`SOCIAL_MAX_UPSCALE`, default 2.1x for 1080p recordings). Run the
+  workflow with `layout = framed` to show the full wide shot instead.
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
 
 ## Tests

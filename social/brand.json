@@ -14,5 +14,7 @@
     "Oak Grove Elementary, Durham",
     "eastpointdurham.com"
   ],
-  "fallback_font": "Archivo"
+  "fallback_font": "Archivo",
+  "style": "both",
+  "_style_options": "both = render every reel in both looks (default); editorial = calm Bridgetown-style captions, no banner; bold = hook banner, brush stroke, word highlight"
 }

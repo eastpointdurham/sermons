@@ -252,9 +252,17 @@ def hook_block_height(hook, fonts_dir, scripture):
     return 150 + len(lines) * int(HOOK_SIZE * 1.02) + 70 + (54 if scripture else 0)
 
 
-def make_overlay(clip, brand, layout, fonts_dir, out_path):
+def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
     ink, white, sage = brand["ink"], brand["offwhite"], brand["sage"]
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    if style == "editorial":
+        # Let the teaching carry it: no banner, no logo. Just a whisper of shade
+        # behind the caption line so white type holds on light backgrounds.
+        band = vertical_scrim(520, ink, 0, 70)
+        canvas.alpha_composite(band, (0, 700))
+        canvas.alpha_composite(vertical_scrim(520, ink, 70, 0), (0, 1220))
+        canvas.save(out_path)
+        return out_path
 
     if layout == "fill":
         canvas.alpha_composite(vertical_scrim(720, ink, 235, 0), (0, 0))
@@ -295,6 +303,30 @@ def make_overlay(clip, brand, layout, fonts_dir, out_path):
 # captions
 # --------------------------------------------------------------------------
 
+EDITORIAL_CAP_SIZE = 50
+
+
+def editorial_caption_frame(words, brand, fonts_dir, cap_y):
+    """Small, calm, centred caps; no highlight. One short phrase at a time."""
+    white, ink = hex_rgb(brand["offwhite"]), hex_rgb(brand["ink"])
+    f = font("bold", EDITORIAL_CAP_SIZE, fonts_dir)
+    text = " ".join(w.upper() for w in words)
+    lines = wrap_words(text.split(), f, 820, tracking=1)
+    lead = int(EDITORIAL_CAP_SIZE * 1.25)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d, ds = ImageDraw.Draw(img), ImageDraw.Draw(shadow)
+    top = cap_y - len(lines) * lead / 2 + f.getmetrics()[0] * 0.8
+    for i, line in enumerate(lines):
+        t = " ".join(line)
+        x = (W - text_width(t, f, 1)) / 2
+        draw_tracked(ds, x, top + i * lead + 2, t, f, ink + (150,), 1)
+        draw_tracked(d, x, top + i * lead, t, f, white + (255,), 1)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(5))
+    shadow.alpha_composite(img)
+    return shadow
+
+
 def caption_frame(words, active, brand, fonts_dir, cap_y):
     """One transparent frame: the chunk's words, the active one on a sage mark."""
     white, sage, ink = hex_rgb(brand["offwhite"]), hex_rgb(brand["sage"]), hex_rgb(brand["ink"])
@@ -332,9 +364,12 @@ def caption_frame(words, active, brand, fonts_dir, cap_y):
     return shadow
 
 
-def caption_track(clip, chunks, brand, fonts_dir, layout, workdir):
+def caption_track(clip, chunks, brand, fonts_dir, layout, workdir, style="bold"):
     """Write caption PNGs and an ffconcat list; returns the list path."""
-    cap_y = 1330 if layout == "fill" else 1560
+    if style == "editorial":
+        cap_y = 1290 if layout == "fill" else 1450
+    else:
+        cap_y = 1330 if layout == "fill" else 1560
     t0, dur = clip["start"], clip["end"] - clip["start"]
     blank = os.path.join(workdir, f"c{clip['n']}_blank.png")
     Image.new("RGBA", (W, H), (0, 0, 0, 0)).save(blank)
@@ -343,6 +378,13 @@ def caption_track(clip, chunks, brand, fonts_dir, layout, workdir):
     for ci, chunk in enumerate(chunks):
         chunk_end = chunks[ci + 1][0]["s"] if ci + 1 < len(chunks) else chunk[-1]["e"] + 0.4
         chunk_end = min(chunk_end, chunk[-1]["e"] + 0.6)
+        if style == "editorial":            # one frame per phrase, not per word
+            s, e = chunk[0]["s"] - t0, chunk_end - t0
+            if e > s:
+                p = os.path.join(workdir, f"c{clip['n']}_{ci:03d}.png")
+                editorial_caption_frame([x["w"] for x in chunk], brand, fonts_dir, cap_y).save(p)
+                events.append((max(0.0, s), min(dur, e), p))
+            continue
         for wi, w in enumerate(chunk):
             s = w["s"] - t0
             e = (chunk[wi + 1]["s"] if wi + 1 < len(chunk) else chunk_end) - t0
@@ -372,10 +414,20 @@ def caption_track(clip, chunks, brand, fonts_dir, layout, workdir):
 # end card
 # --------------------------------------------------------------------------
 
-def make_end_card(brand, fonts_dir, out_path):
+def make_end_card(brand, fonts_dir, out_path, style="bold"):
     ink, white, sage = brand["ink"], brand["offwhite"], brand["sage"]
     img = Image.new("RGBA", (W, H), hex_rgb(ink) + (255,))
     d = ImageDraw.Draw(img)
+    if style == "editorial":
+        sb = sunburst(150, sage)
+        img.alpha_composite(sb, ((W - sb.width) // 2, 800))
+        fw = font("medium", 34, fonts_dir)
+        for i, (txt, tr, a) in enumerate([("EASTPOINT CHURCH", 12, 255),
+                                          ("SUNDAYS AT 10AM  \u00b7  EAST DURHAM", 6, 200)]):
+            tw = text_width(txt, fw, tr)
+            draw_tracked(d, (W - tw) / 2, 1010 + i * 62, txt, fw, hex_rgb(white) + (a,), tr)
+        img.convert("RGB").save(out_path)
+        return out_path
     y = 640
     sb = sunburst(300, sage)
     img.alpha_composite(sb, ((W - sb.width) // 2, y))

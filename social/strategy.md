@@ -53,7 +53,7 @@ carries the post, the copy frames it.
   #shorts; description = first paragraph + "Full message: <link>".
 
 ## Clip selection rubric
-Pick 4 to 6 moments that each stand alone for someone who has never been to church.
+Pick 2 to 3 moments (quality over quantity) that each stand alone for someone who has never been to church.
 
 A good clip:
 - Makes one idea land in 30 to 75 seconds (hard max 88).
@@ -71,10 +71,10 @@ Skip: announcements, offering, welcome, inside jokes, anything naming a congrega
 laughter with no payoff, the scripture reading on its own, prayer at the end, and
 moments that depend on slides or props people can't see.
 
-Mix across the week: one gospel-clear clip, one practical or comforting clip, one story
-or illustration, one that answers a question skeptics ask.
+Mix across the week: make each clip a different kind (gospel-clear, practical or
+comforting, story, or an answer to a question skeptics ask).
 
 ## Weekly rhythm
-Mon: strongest clip. Tue, Thu: next best. Wed: comforting or practical clip. Fri: the
-clip that works best as an invite (caption invites to Sunday at 10am). Sat: the most
-shareable clip. Keep clips under 90 seconds (Facebook Reels limit).
+Two to three teaching reels a week plus one Sunday photo post (people, not the stage).
+Tue: strongest clip. Thu: next best. Sat (optional third): the clip that works best as
+an invite; its caption ends "Gather with us / Sundays at 10am, Oak Grove Elementary". Keep clips under 90 seconds (Facebook Reels limit).

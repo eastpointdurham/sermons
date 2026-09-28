@@ -8,7 +8,7 @@ puts the recording on YouTube as a private draft). For each new sermon it:
   1. downloads the recording from Drive (the "Sermons" folder, plus any extra
      folders in SOCIAL_EXTRA_FOLDER_IDS),
   2. transcribes it with word-level timestamps (faster-whisper),
-  3. asks Claude to pick 4-6 standalone moments using social/strategy.md,
+  3. asks Claude to pick 2-3 standalone moments using social/strategy.md,
   4. renders each moment as a 1080x1920 reel in Eastpoint's brand style
      (hook banner, word-by-word captions, scripture tag, end card),
   5. uploads the reels, a Google Doc content plan and plan.json to a dated
@@ -58,7 +58,7 @@ DRY_RUN = os.environ.get("DRY_RUN") == "1"
 
 W, H = 1080, 1920
 MIN_LEN, MAX_LEN = 20.0, 88.0          # Facebook Reels cap at 90 s
-END_CARD_SECONDS = 2.5
+END_CARD_SECONDS = 2.0
 
 
 def log(*a):
@@ -342,9 +342,9 @@ Return ONLY a JSON object, no prose, in this shape:
       "why": "one sentence: why this works for someone who has never been to church",
       "scores": {{"hook": 1-5, "standalone": 1-5, "gospel": 1-5, "emotional_truth": 1-5, "shareability": 1-5}},
       "kind": "gospel | practical | story | skeptic-question",
-      "post_day": "Mon | Tue | Wed | Thu | Fri | Sat",
-      "instagram_caption": "hook line, 1-3 short lines, one next step, 3-5 hashtags on the last line",
-      "facebook_caption": "warmer, can mention Sundays at 10am at Oak Grove Elementary",
+      "post_day": "Tue | Thu | Sat",
+      "instagram_caption": "per the strategy caption rules: question/statement line, 1-2 short paragraphs, From \\"<series>: <title>\\" line, eastpointdurham.com, at most two local hashtags",
+      "facebook_caption": "same copy, no hashtags, may add one warm sentence of invitation",
       "youtube_title": "under 70 characters, a searchable question or phrase, end with #shorts",
       "youtube_description": "2 sentences + 'Full message: {youtube_link}'"
     }}
@@ -363,7 +363,7 @@ def select_moments(sentences, meta, service_date):
     prompt = PROMPT.format(
         strategy=strategy, title=meta.get("title") or "Sunday sermon",
         service_date=service_date.isoformat(), preacher=meta.get("preacher", "Peter Frey"),
-        transcript=transcript, n_min=4, n_max=6, min_len=MIN_LEN, max_len=MAX_LEN,
+        transcript=transcript, n_min=2, n_max=3, min_len=MIN_LEN, max_len=MAX_LEN,
         youtube_link=f"https://youtu.be/{yt}" if yt else "link in bio")
     client = anthropic.Anthropic()
     msg = client.messages.create(model=MODEL, max_tokens=8000,
@@ -478,52 +478,67 @@ def choose_framing(video_path, start, end):
     return "fill", (lo + hi) / 2
 
 
-def render_clip(video_path, clip, brand, out_path, workdir, layout):
+STYLES = ("editorial", "bold")
+
+
+def styles_to_render(brand):
+    """SOCIAL_STYLE (workflow input) or brand.json "style": editorial | bold | both."""
+    want = (os.environ.get("SOCIAL_STYLE") or brand.get("style") or "both").strip().lower()
+    if want == "both":
+        return list(STYLES)
+    if want not in STYLES:
+        raise SystemExit(f"style must be editorial, bold or both, got {want!r}")
+    return [want]
+
+
+def render_clip(video_path, clip, brand, out_path, workdir, layout, style="editorial"):
     import reel_design as rd
     dur = clip["end"] - clip["start"]
-    nudge = os.environ.get("SOCIAL_CROP_X")
-    if layout == "fill" and nudge:
-        cx = 0.5 + float(nudge)
-    elif layout == "fill":
-        layout, cx = choose_framing(video_path, clip["start"], clip["end"])
-    clip["layout"] = layout
     ink = brand["ink"].lstrip("#")
-
     if layout == "fill":
-        clip["crop_center"] = round(cx, 3)
-        base = (f"crop=ih*9/16:ih:max(0\\,min(iw-ih*9/16\\,iw*{cx:.4f}-ih*9/32)):0,"
-                f"scale={W}:{H}:flags=lanczos,unsharp=5:5:0.5:5:5:0.0")
+        vertical = os.path.join(workdir, f"clip{clip['n']}_vertical.mp4")
+        if not os.path.exists(vertical):            # shared by both styles
+            import reframe
+            stats = reframe.render_vertical(video_path, clip["start"], dur, vertical)
+            clip["reframe"] = stats
+            clip["crop_center"] = stats.get("mean_cx", 0.5)
+            log(f"    camera: {stats}")
+        src, src_ss, base = vertical, 0.0, "null"
     else:
+        src, src_ss = video_path, clip["start"]
         base = (f"scale={W}:-2:flags=lanczos,"
                 f"pad={W}:{H}:0:(oh-ih)/2+150:0x{ink}")
+    clip["layout"] = layout
 
     overlay = rd.make_overlay(clip, brand, layout, FONTS_DIR,
-                              os.path.join(workdir, f"clip{clip['n']}_overlay.png"))
-    captions = rd.caption_track(clip, caption_chunks(clip["words"]), brand, FONTS_DIR,
-                                layout, workdir)
+                              os.path.join(workdir, f"clip{clip['n']}_{style}_overlay.png"), style)
+    chunks = (caption_chunks(clip["words"], max_words=3, max_chars=16) if style == "editorial"
+              else caption_chunks(clip["words"]))
+    captions = rd.caption_track(clip, chunks, brand, FONTS_DIR, layout, workdir, style)
     graph = (f"[0:v]{base},setsar=1,fps=30[v];"
              f"[1:v]format=rgba,fade=t=in:st=0:d=0.45:alpha=1[o];"
              f"[v][o]overlay=0:0[vo];"
              f"[2:v]format=rgba,fps=30[c];"
              f"[vo][c]overlay=0:0:eof_action=repeat,trim=duration={dur:.3f},"
              f"format=yuv420p[out]")
-    main = os.path.join(workdir, f"clip{clip['n']}_main.mp4")
+    main = os.path.join(workdir, f"clip{clip['n']}_{style}_main.mp4")
     subprocess.run([
         "ffmpeg", "-v", "error", "-y",
-        "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path,
+        "-ss", f"{src_ss:.3f}", "-t", f"{dur:.3f}", "-i", src,
         "-loop", "1", "-t", f"{dur:.3f}", "-i", overlay,
         "-f", "concat", "-safe", "0", "-i", captions,
-        "-filter_complex", graph, "-map", "[out]", "-map", "0:a:0",
+        "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path,
+        "-filter_complex", graph, "-map", "[out]", "-map", "3:a:0",
         "-af", "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000",
         "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
         "-tune", "film", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-shortest", main],
         check=True)
 
-    card = os.path.join(workdir, "endcard.mp4")
+    card = os.path.join(workdir, f"endcard_{style}.mp4")
     if not os.path.exists(card):
-        render_end_card(brand, card, workdir)
+        render_end_card(brand, card, workdir, style)
 
-    lst = os.path.join(workdir, f"clip{clip['n']}.txt")
+    lst = os.path.join(workdir, f"clip{clip['n']}_{style}.txt")
     with open(lst, "w") as f:
         f.write(f"file '{main}'\nfile '{card}'\n")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst,
@@ -531,9 +546,9 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout):
     os.remove(main)
 
 
-def render_end_card(brand, out_path, workdir):
+def render_end_card(brand, out_path, workdir, style="editorial"):
     import reel_design as rd
-    png = rd.make_end_card(brand, FONTS_DIR, os.path.join(workdir, "endcard.png"))
+    png = rd.make_end_card(brand, FONTS_DIR, os.path.join(workdir, f"endcard_{style}.png"), style)
     ink = brand["ink"].lstrip("#")
     subprocess.run([
         "ffmpeg", "-v", "error", "-y",
@@ -560,17 +575,18 @@ def plan_html(plan, clips, meta, service_date):
     rows.append(f"<p><b>Big idea:</b> {esc(plan.get('sermon_big_idea', ''))}</p>")
     rows.append("<p>Drafts only. Review each reel, then schedule the ones you approve in "
                 "Meta Business Suite (Instagram + Facebook) and YouTube Studio (Shorts). "
-                "Delete or rename any clip you don't want.</p>")
+                "Each reel comes in two looks: (editorial) calm captions, and (bold) hook banner "
+                "and brush stroke. Post whichever fits the moment; delete the other.</p>")
     rows.append("<table border='1' cellpadding='6'><tr><th>Day</th><th>File</th><th>Hook</th>"
                 "<th>Length</th><th>Kind</th><th>Why</th></tr>")
     for c in clips:
-        rows.append(f"<tr><td>{esc(c.get('post_day'))}</td><td>{esc(c['file'])}</td>"
+        rows.append(f"<tr><td>{esc(c.get('post_day'))}</td><td>{esc(' / '.join(c.get('files', {}).values()) or c['file'])}</td>"
                     f"<td>{esc(c['hook'])}</td><td>{c['end'] - c['start']:.0f}s</td>"
                     f"<td>{esc(c.get('kind'))}</td><td>{esc(c.get('why'))}</td></tr>")
     rows.append("</table>")
     for c in clips:
         rows.append(f"<h2>{esc(c.get('post_day'))}: {esc(c['hook'])}</h2>")
-        rows.append(f"<p><i>{esc(c['file'])} · {fmt_t(c['start'])}–{fmt_t(c['end'])} in the sermon"
+        rows.append(f"<p><i>{esc(' / '.join(c.get('files', {}).values()) or c['file'])} · {fmt_t(c['start'])}–{fmt_t(c['end'])} in the sermon"
                     f"{' · ' + esc(c['scripture']) if c.get('scripture') else ''}</i></p>")
         rows.append(f"<p><b>Instagram</b><br>{esc(c.get('instagram_caption'))}</p>")
         rows.append(f"<p><b>Facebook</b><br>{esc(c.get('facebook_caption'))}</p>")
@@ -623,13 +639,19 @@ def process(drive, sermon, brand, state):
 
         out_dir = os.path.join(tmp, "out")
         os.makedirs(out_dir)
+        styles = styles_to_render(brand)
         for n, c in enumerate(clips, 1):
             c["n"] = n
             slug = re.sub(r"[^a-z0-9]+", "-", c["hook"].lower()).strip("-")[:40]
-            c["file"] = f"{stamp} reel {n} - {slug}.mp4"
-            log(f"  rendering {n}/{len(clips)}: {c['hook']} ({c['end'] - c['start']:.0f}s)")
-            render_clip(video, c, brand, os.path.join(out_dir, c["file"]), tmp,
-                        c.get("layout") or LAYOUT)
+            c["files"] = {}
+            for style in styles:
+                name = f"{stamp} reel {n} - {slug}" + (f" ({style})" if len(styles) > 1 else "") + ".mp4"
+                log(f"  rendering {n}/{len(clips)} {style}: {c['hook']} ({c['end'] - c['start']:.0f}s)")
+                render_clip(video, c, brand, os.path.join(out_dir, name), tmp,
+                            c.get("layout") or LAYOUT, style)
+                c["files"][style] = name
+            c["file"] = next(iter(c["files"].values()))
+            c.pop("_framed_once", None)
 
         # Final Cut handoff: full-quality projects + captions for finishing
         import fcp_export
@@ -637,8 +659,8 @@ def process(drive, sermon, brand, state):
         os.makedirs(fcp_dir)
         sw, sh, sfps, sdur = probe_video(video)
         for c in clips:
-            fcp_export.write_srt(c, caption_chunks(c["words"]),
-                                 os.path.join(fcp_dir, c["file"].replace(".mp4", ".srt")))
+            srt_name = re.sub(r" \((editorial|bold)\)", "", c["file"]).replace(".mp4", ".srt")
+            fcp_export.write_srt(c, caption_chunks(c["words"]), os.path.join(fcp_dir, srt_name))
         with open(os.path.join(fcp_dir, f"{stamp} reels.fcpxml"), "w", encoding="utf-8") as f:
             f.write(fcp_export.build_fcpxml(
                 sermon["name"], fcp_export.media_url_for(sermon["name"]), sdur, sfps, sw, sh,
@@ -678,13 +700,17 @@ def process(drive, sermon, brand, state):
         folder_name = f"{stamp} {meta.get('title') or 'Sermon'}"[:120]
         folder = ensure_folder(drive, folder_name, parent)
         for c in clips:
-            up = upload(drive, os.path.join(out_dir, c["file"]), c["file"], folder, "video/mp4")
-            c["drive_id"] = up["id"]
-            log(f"  uploaded {c['file']}")
+            c["drive_ids"] = {}
+            for style, name in c["files"].items():
+                up = upload(drive, os.path.join(out_dir, name), name, folder, "video/mp4")
+                c["drive_ids"][style] = up["id"]
+                log(f"  uploaded {name}")
+            c["drive_id"] = next(iter(c["drive_ids"].values()))
         doc = upload(drive, os.path.join(out_dir, "plan.html"), f"Social plan {stamp}", folder,
                      "text/html", as_google_doc=True)
         for c, p in zip(clips, public):
             p["drive_id"] = c["drive_id"]
+            p["drive_ids"] = c["drive_ids"]
         with open(os.path.join(out_dir, "plan.json"), "w") as f:
             json.dump(plan_json, f, indent=2, ensure_ascii=False)
         upload(drive, os.path.join(out_dir, "plan.json"), "plan.json", folder, "application/json")
