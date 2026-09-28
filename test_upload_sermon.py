@@ -104,8 +104,19 @@ check("guest preacher in title",
 longy = {"title": "A" * 140, "scripture": "Luke 18:1–8", "series": "", "preacher": "Peter Frey"}
 lt = U.build_title(longy, date(2026, 8, 16))
 check("long title truncated", len(lt) <= 100, True)
-check("long title keeps all segments", lt.count("|"), 3)
-check("long title keeps church name", lt.endswith("| Eastpoint Church Durham"), True)
+check("long title keeps the parser's segments", lt.count("|"), 2)
+check("church name goes before the sermon title is cut", "Eastpoint" in lt, False)
+
+# The church name shortens a word at a time: Durham, then Church, then Eastpoint.
+def _t(n):
+    return U.build_title({"title": "T" * n, "scripture": "Luke 18:1–8", "series": "",
+                          "preacher": "Peter Frey"}, date(2026, 8, 16))
+check("fits: full church name", _t(40).endswith("| Eastpoint Church Durham"), True)
+check("drops Durham first", _t(50).endswith("| Eastpoint Church"), True)
+check("then Church", _t(58).endswith("| Eastpoint"), True)
+check("then Eastpoint", _t(70).endswith("| Peter Frey"), True)
+check("sermon title never cut while the name can give way", _t(70).startswith("T" * 70), True)
+check("every length within 100", all(len(_t(n)) <= 100 for n in range(0, 160)), True)
 
 # No planning-doc entry at all.
 none_title = U.build_title(None, date(2026, 9, 6))

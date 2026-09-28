@@ -275,11 +275,16 @@ def read_planning_doc(docs, doc_id=None):
 # --------------------------------------------------------------------------
 
 TITLE_SUFFIX = "Eastpoint Church Durham"
+MAX_TITLE = 100                      # YouTube's limit
+# When a title runs long, the church name gives way a word at a time before
+# the sermon title is shortened.
+SUFFIX_FALLBACKS = ("Eastpoint Church Durham", "Eastpoint Church", "Eastpoint", None)
 
 
 def build_title(entry, service_date):
     """`Title | Scripture | Preacher | Eastpoint Church Durham`. build_site.py
-    parses the first three segments."""
+    parses the first three segments. Over 100 characters, drop "Durham", then
+    "Church", then "Eastpoint", and only then shorten the sermon title."""
     if entry and entry["title"]:
         head = entry["title"]
     elif entry and entry["scripture"]:
@@ -287,22 +292,22 @@ def build_title(entry, service_date):
     else:
         head = "Sunday Service " + service_date.strftime("%B %-d, %Y")
 
-    # Always emit exactly three segments. build_site.py reads parts[1] as the
-    # scripture and parts[2] as the preacher; with only two segments it would
+    # Always emit the three segments build_site.py reads. It takes parts[1] as
+    # the scripture and parts[2] as the preacher; with only two segments it would
     # take the preacher's name as the scripture reference and then fall back to
     # the default preacher — wrong on both counts.
     scripture = entry["scripture"] if entry and entry["scripture"] else ""
-    # The church name goes last, after the three segments build_site.py reads.
-    parts = [head, scripture, entry["preacher"] if entry else DEFAULT_PREACHER, TITLE_SUFFIX]
+    parts = [head, scripture, entry["preacher"] if entry else DEFAULT_PREACHER]
 
-    title = " | ".join(parts)
-    if len(title) > 100:
-        # Trim the first segment only — the parser needs all three pipes.
-        room = 100 - (len(title) - len(head)) - 1
-        head = head[:max(room, 10)].rstrip()
-        parts[0] = head
-        title = " | ".join(parts)[:100]
-    return title
+    for suffix in SUFFIX_FALLBACKS:
+        title = " | ".join(parts + ([suffix] if suffix else []))
+        if len(title) <= MAX_TITLE:
+            return title
+
+    # Still too long with no church name: trim the sermon title only.
+    room = MAX_TITLE - (len(title) - len(head)) - 1
+    parts[0] = head[:max(room, 10)].rstrip()
+    return " | ".join(parts)[:MAX_TITLE]
 
 
 def build_description(entry, service_date):
