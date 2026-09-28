@@ -315,6 +315,28 @@ def build_title(entry, service_date):
     return " | ".join(parts)[:MAX_TITLE]
 
 
+VISIT_URL = "https://www.eastpointdurham.com/visit"
+INSTAGRAM_URL = "https://instagram.com/eastpointdurham"
+
+
+def description_footer(scripture=""):
+    """The same close on every sermon description: when and where we meet, how
+    to visit, where to follow, and hashtags (YouTube shows the first three
+    above the title)."""
+    tags = ["#EastpointChurch", "#DurhamNC"]
+    book = re.match(r"((?:[1-3]\s)?[A-Za-z]+)", scripture or "")
+    if book:
+        tags.append("#" + book.group(1).replace(" ", ""))
+    return "\n".join([
+        f"{CHURCH_NAME} · Sundays at 10am · Oak Grove Elementary, Durham, NC",
+        f"Plan a visit: {VISIT_URL}",
+        f"Follow on Instagram: {INSTAGRAM_URL}",
+        "Subscribe for a new sermon every week.",
+        "",
+        " ".join(tags),
+    ])
+
+
 def build_description(entry, service_date):
     pretty = service_date.strftime("%B %-d, %Y")
     lines = []
@@ -326,7 +348,7 @@ def build_description(entry, service_date):
         lines.append(f"Scripture: {entry['scripture']}")
     if entry and entry["series"]:
         lines.append(f"Series: {entry['series']}")
-    lines += ["", f"{CHURCH_NAME} · Durham, NC · https://eastpointdurham.com"]
+    lines += ["", description_footer(entry["scripture"] if entry else "")]
     return "\n".join(lines)[:4900]
 
 

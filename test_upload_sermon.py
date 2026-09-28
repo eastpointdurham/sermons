@@ -170,6 +170,13 @@ desc = U.build_description(entry, date(2026, 8, 9))
 check("description mentions the date", "August 9, 2026" in desc, True)
 check("description carries scripture", "Scripture: Ephesians 3:14–21" in desc, True)
 check("description within limit", len(desc) <= 4900, True)
+check("description links to plan a visit", "https://www.eastpointdurham.com/visit" in desc, True)
+check("description links Instagram", "https://instagram.com/eastpointdurham" in desc, True)
+check("description ends with hashtags", desc.splitlines()[-1], "#EastpointChurch #DurhamNC #Ephesians")
+check("numbered book hashtag", U.description_footer("1 Corinthians 15:1–6").splitlines()[-1].split()[-1],
+      "#1Corinthians")
+check("no scripture, no book hashtag", U.description_footer("").splitlines()[-1],
+      "#EastpointChurch #DurhamNC")
 
 tags = U.build_tags(entry)
 check("tags include scripture", "Ephesians 3:14–21" in tags, True)

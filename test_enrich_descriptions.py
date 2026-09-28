@@ -160,6 +160,8 @@ check("reads text after thinking block", desc.startswith("A real summary."), Tru
 check("tags parsed", tags, ["Mark", "discipleship"])
 check("whole transcript sent", "THE ENDING" in fc.sent["messages"][0]["content"], True)
 check("model is current", fc.sent["model"], E.MODEL)
+check("summary keeps the standard footer", "Plan a visit: https://www.eastpointdurham.com/visit" in desc
+      and desc.rstrip().endswith("#EastpointChurch #DurhamNC #Mark"), True)
 check("refusal fallback on", fc.sent.get("fallbacks"), "default")
 check("refusal leaves description alone",
       E.compose(sermon, FakeClaude([], stop_reason="refusal")), (None, None))

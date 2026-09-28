@@ -37,7 +37,7 @@ except ImportError:
 
 
 NEW_SERMONS_FILE = "new_sermons.json"
-CHURCH_LINE = "Eastpoint Church · Durham, NC · https://eastpointdurham.com"
+from upload_sermon import description_footer
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5")
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 
@@ -161,7 +161,7 @@ def compose(sermon, client):
         body += f"\nScripture: {sermon['scripture']}"
     if sermon.get("preacher"):
         body += f"\nPreacher: {sermon['preacher']}"
-    body += f"\n\n{CHURCH_LINE}\n"
+    body += f"\n\n{description_footer(sermon.get('scripture', ''))}\n"
     return body[:4900], trim_tags(tags)
 
 
