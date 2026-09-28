@@ -493,6 +493,9 @@ def main():
             up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
             print(f"  mp3 in Drive: {up.get('webViewLink')}")
 
+        import thumbnail                       # never raises; logs and moves on
+        thumbnail.add_thumbnail(drive, youtube, entry, service_date, video_id, SERMON_FOLDER_ID)
+
         state.append({
             "drive_file_id": video["id"],
             "drive_file_name": video["name"],

@@ -1,0 +1,44 @@
+name: Make Sermon Thumbnail
+
+# Remake the YouTube thumbnail for a sermon that is already uploaded, e.g. after
+# adding the series art or photos to Drive. New uploads get one automatically.
+# The video stays private; only its thumbnail changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_date:
+        description: "Sunday of the sermon (YYYY-MM-DD)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  thumbnail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Make and set thumbnail
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_YOUTUBE_REFRESH_TOKEN: ${{ secrets.GOOGLE_YOUTUBE_REFRESH_TOKEN }}
+          SERMON_FOLDER_ID: 1SCMlaqWua24gPPU-Z7yF19pisehp3xu_
+          PLANNING_DOC_ID: 1LZDGqW9G9uNWCCwMjv8u3kwQHlE6azpLQz96ynHOM6o
+          PLANNING_DOC_START_YEAR: "2026"
+          SERIES_GRAPHICS_FOLDER_ID: ${{ vars.SERIES_GRAPHICS_FOLDER_ID }}
+          THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}
+          THUMBNAILS_FOLDER_ID: ${{ vars.THUMBNAILS_FOLDER_ID }}
+        run: python thumbnail.py "${{ github.event.inputs.service_date }}"

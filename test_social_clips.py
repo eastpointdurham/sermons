@@ -160,5 +160,53 @@ with mock.patch.object(sc, "list_folder", side_effect=lambda drive, fid: main_fi
         todo = sc.find_new_sermons(None, [])
         check("manual re-run ignores age", [t["id"] for t in todo] == ["old"])
 
+# thumbnails -------------------------------------------------------------------
+import thumbnail as T
+from datetime import date as _date
+series = "ALL IN: Following Jesus in the Gospel of Mark"
+check("series key", T.series_key(series) == "all in")
+check("art name matches series", T.matches_series("ALL IN.png", series))
+check("art name with suffix matches", T.matches_series("All In - 16x9.jpg", series))
+check("other series art ignored", not T.matches_series("Colossians.png", series))
+check("no series matches nothing", not T.matches_series("ALL IN.png", ""))
+art_files = [{"name": "Colossians.png"}, {"name": "ALL IN old.png"}, {"name": "ALL IN.png"},
+             {"name": "ALL IN notes.txt"}]
+check("plainest art picked", T.pick_series_art(art_files, series)["name"] == "ALL IN.png")
+photos = [{"name": f"{i:02d}.jpg"} for i in range(5)] + [{"name": "readme.txt"}]
+d1 = _date(2026, 9, 27)
+check("photo pick is stable", T.pick_photo(photos, d1) == T.pick_photo(list(reversed(photos)), d1))
+check("photo rotates weekly", T.pick_photo(photos, d1) != T.pick_photo(photos, _date(2026, 10, 4)))
+check("no photos -> None", T.pick_photo([{"name": "x.txt"}], d1) is None)
+from PIL import Image as _Im, ImageDraw as _Dr
+two = _Im.new("RGBA", (400, 200), (242, 232, 218, 255))
+_Dr.Draw(two).rectangle((0, 120, 400, 200), fill=(142, 74, 73, 255))
+pal = T.palette_from_art(two)
+check("palette ground is the dark colour", pal and pal["ground"][0] < 160 and pal["text"][0] > 230)
+check("flat art gives no palette", T.palette_from_art(_Im.new("RGBA", (50, 50), (90, 90, 90, 255))) is None)
+with tempfile.TemporaryDirectory() as tmp:
+    entry = {"title": "Are you all in?", "scripture": "Mark 1:14\u201320", "series": series}
+    two.save(os.path.join(tmp, "art.png"))
+    _Im.new("RGB", (3000, 2000), (120, 100, 90)).save(os.path.join(tmp, "p.jpg"))
+    for label, kw in (("brand look", {}),
+                      ("series look", {"photo_path": os.path.join(tmp, "p.jpg"),
+                                       "art_path": os.path.join(tmp, "art.png")})):
+        out = T.render(entry, d1, brand, fonts, os.path.join(tmp, "t.jpg"), **kw)
+        im = Image.open(out)
+        check(f"thumbnail {label} is 1280x720", im.size == (1280, 720))
+        check(f"thumbnail {label} under 2 MB", os.path.getsize(out) < 2_000_000)
+    check("series look uses the art's ground",
+          Image.open(out).convert("RGB").getpixel((20, 700))[0] > 120)
+    T.render(None, d1, brand, fonts, os.path.join(tmp, "n.jpg"))
+    check("thumbnail without a planning entry", os.path.exists(os.path.join(tmp, "n.jpg")))
+
+
+class _BrokenDrive:
+    def files(self):
+        raise RuntimeError("drive down")
+
+
+T.add_thumbnail(_BrokenDrive(), None, {"series": series}, d1, "vid", "folder")
+check("thumbnail failure never raises", True)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

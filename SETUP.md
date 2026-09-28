@@ -3,8 +3,9 @@
 Four GitHub Actions workflows run the pipeline. Each Sunday recording in the Drive
 "Sermons" folder becomes:
 
-1. **Upload Sermons to YouTube** (`upload_sermon.py`): a *private* YouTube draft and a
-   podcast MP3 in Drive. Nothing is published.
+1. **Upload Sermons to YouTube** (`upload_sermon.py`): a *private* YouTube draft with a
+   thumbnail in the current series' look, and a podcast MP3 in Drive. Nothing is
+   published.
 2. **Update Sermon Archive** (`build_site.py`, hourly): the draft is transcribed and a
    transcript doc is filed. Its YouTube description is rewritten from the transcript.
 3. **Make Social Reels** (`social_clips.py`): 2 to 3 draft vertical reels, each in two looks, plus a
@@ -75,6 +76,24 @@ Drive › Social Drafts › `<date> <title>`:
   source allows (`SOCIAL_MAX_UPSCALE`, default 2.1x for 1080p recordings). Run the
   workflow with `layout = framed` to show the full wide shot instead.
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
+
+## Thumbnails
+
+`thumbnail.py` makes each draft's 1280×720 thumbnail from three Drive folders next to
+"Sermons" (created on first run):
+
+- **Series Graphics**: when a series starts, export its key art from Canva
+  (Share › Google Drive) and name it after the series, e.g. `ALL IN.png`. The
+  thumbnail places the art top left and takes its colours from it (ground, title,
+  brush underline, scripture). With no art, it uses the brand colours and sunburst.
+- **Thumbnail Photos**: approved photos only (people who are fine appearing on
+  YouTube). A subfolder named after a series, e.g. `ALL IN`, is used for that
+  series; otherwise the whole folder. The photo rotates weekly.
+- **Thumbnails**: a copy of every thumbnail made.
+
+YouTube only accepts custom thumbnails from a phone-verified channel
+(youtube.com/verify). To remake one after adding art or photos: Actions ›
+**Make Sermon Thumbnail** › Run workflow with the Sunday's date.
 
 ## Tests
 
