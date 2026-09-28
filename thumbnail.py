@@ -243,9 +243,10 @@ def _full_bleed(photo, ground):
     y = min(max(0, round(big.height * cy - TH * 0.4)), big.height - TH)
     img = ImageEnhance.Color(big.crop((x, y, x + TW, y + TH))).enhance(0.9)
     left = Image.new("L", (TW, 1))
+    hold, clear = 0.42, 0.72                       # solid behind the type, then fade out
     for i in range(TW):
-        u = min(1.0, i / (TW * 0.55))
-        left.putpixel((i, 0), int(225 * (1 - u * u * (3 - 2 * u))))
+        u = min(1.0, max(0.0, (i / TW - hold) / (clear - hold)))
+        left.putpixel((i, 0), int(232 * (1 - u * u * (3 - 2 * u))))
     left = left.resize((TW, TH))
     low = Image.linear_gradient("L").resize((TW, TH)).point(lambda v: int(max(0, v - 150) * 1.2))
     return Image.composite(Image.new("RGB", (TW, TH), ground), img, ImageChops.lighter(left, low))
