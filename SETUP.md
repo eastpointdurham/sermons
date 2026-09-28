@@ -3,9 +3,8 @@
 Four GitHub Actions workflows run the pipeline. Each Sunday recording in the Drive
 "Sermons" folder becomes:
 
-1. **Upload Sermons to YouTube** (`upload_sermon.py`): a *private* YouTube draft with a
-   thumbnail in the current series' look, and a podcast MP3 in Drive. Nothing is
-   published.
+1. **Upload Sermons to YouTube** (`upload_sermon.py`): a *private* YouTube draft and a
+   podcast MP3 in Drive. Nothing is published.
 2. **Update Sermon Archive** (`build_site.py`, hourly): the draft is transcribed and a
    transcript doc is filed. Its YouTube description is rewritten from the transcript.
 3. **Make Social Reels** (`social_clips.py`): 2 to 3 draft vertical reels, each in two looks, plus a
@@ -78,6 +77,9 @@ Drive › Social Drafts › `<date> <title>`:
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
 
 ## Thumbnails
+
+**Paused.** The team designs its own thumbnails, so uploads no longer set one.
+Set the `AUTO_THUMBNAILS` repository variable to `1` to turn this back on.
 
 `thumbnail.py` makes each draft's 1280×720 thumbnail from three Drive folders next to
 "Sermons" (created on first run):

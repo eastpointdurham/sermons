@@ -45,6 +45,9 @@ PLANNING_DOC_ID   = os.environ.get("PLANNING_DOC_ID", "1LZDGqW9G9uNWCCwMjv8u3kwQ
 START_YEAR        = int(os.environ.get("PLANNING_DOC_START_YEAR", "2025"))
 MAX_PER_RUN       = int(os.environ.get("MAX_PER_RUN", "1"))
 DRY_RUN           = os.environ.get("DRY_RUN") == "1"
+# Custom thumbnails (thumbnail.py). Off: the team designs its own. Set the
+# AUTO_THUMBNAILS repository variable to "1" to turn them back on.
+AUTO_THUMBNAILS   = os.environ.get("AUTO_THUMBNAILS") == "1"
 # Recordings dated before this are ignored, so turning the uploader on does not
 # re-upload sermons that already went to YouTube by hand. YYYY-MM-DD.
 UPLOAD_SINCE      = os.environ.get("UPLOAD_SINCE", "")
@@ -493,8 +496,10 @@ def main():
             up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
             print(f"  mp3 in Drive: {up.get('webViewLink')}")
 
-        import thumbnail                       # never raises; logs and moves on
-        thumbnail.add_thumbnail(drive, youtube, entry, service_date, video_id, SERMON_FOLDER_ID)
+        if AUTO_THUMBNAILS:                    # paused: the team makes its own
+            import thumbnail                   # never raises; logs and moves on
+            thumbnail.add_thumbnail(drive, youtube, entry, service_date, video_id,
+                                    SERMON_FOLDER_ID)
 
         state.append({
             "drive_file_id": video["id"],
