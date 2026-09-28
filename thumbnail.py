@@ -3,11 +3,12 @@
 YouTube thumbnails in the sermon series' look, drawn with Pillow.
 
 1280x720, led by the series art (exported from Canva) and in its own colours
-(sampled from that art). With a photo of the week's preacher: the series lockup
-and the sermon title on the left, the preacher on the right, cropped around his
-face and fading into the series' ground. Without one (a guest with no photos
-yet): the lockup large and centred, the title below. With no series art yet,
-the brand colours and sunburst stand in.
+(sampled from that art): a full-bleed photo, shaded into the series' ground on
+the left and bottom, with the series lockup top left and the sermon title and
+scripture bottom left. The photo alternates weekly between the preacher and a
+community moment, from hand-picked folders only. With no photo: the lockup large
+and centred, the title below. With no series art yet, the brand colours and
+sunburst stand in.
 
 Everything comes from three Drive folders next to "Sermons" (created on first
 use, or set by id):
@@ -15,7 +16,8 @@ use, or set by id):
                                                  after it, e.g. "ALL IN.png"
   Thumbnail Photos   THUMBNAIL_PHOTOS_FOLDER_ID  a subfolder per preacher, named
                                                  as in the planning doc ("Peter
-                                                 Frey"); rotates weekly
+                                                 Frey"), and "Community": approved
+                                                 photos only
   Thumbnails         THUMBNAILS_FOLDER_ID        a copy of every thumbnail made
 
 Missing art or photos never stop an upload.
@@ -64,12 +66,38 @@ def pick_series_art(files, series):
     return min(hits, key=lambda f: (len(f["name"]), f["name"])) if hits else None
 
 
-def pick_photo(files, service_date):
-    """Rotate through the folder a week at a time, so reruns pick the same photo."""
+COMMUNITY = "Community"
+
+
+def photo_turn(service_date):
+    """Alternate weeks: the preacher on even ISO weeks, the community on odd."""
+    return "preacher" if service_date.isocalendar()[1] % 2 == 0 else "community"
+
+
+def choose_photo(drive, photos_root, preacher, service_date):
+    """This week's photo from Thumbnail Photos/<preacher> or Thumbnail Photos/Community,
+    alternating; either folder stands in when the other has nothing (a guest with
+    no photos gets a community one). Only these hand-picked folders are used."""
+    folders = {_norm(f["name"]): f for f in sc.list_folder(drive, photos_root)
+               if f.get("mimeType") == FOLDER_MIME}
+    order = [_norm(preacher), _norm(COMMUNITY)]
+    if photo_turn(service_date) == "community":
+        order.reverse()
+    for key in order:
+        if key and key in folders:
+            photo = pick_photo(sc.list_folder(drive, folders[key]["id"]), service_date, every=2)
+            if photo:
+                return photo
+    return None
+
+
+def pick_photo(files, service_date, every=1):
+    """Rotate through the folder (a step every `every` weeks), so reruns pick the
+    same photo."""
     photos = sorted((f for f in files if IMAGE_RE.search(f["name"])), key=lambda f: f["name"])
     if not photos:
         return None
-    return photos[(service_date.toordinal() // 7) % len(photos)]
+    return photos[(service_date.toordinal() // 7 // every) % len(photos)]
 
 
 # --------------------------------------------------------------------------
@@ -162,15 +190,6 @@ def _hex(c):
     return "#%02x%02x%02x" % c
 
 
-def _fade(w, h, full_at=0.55):
-    """Left-to-right mask: clear at the left edge, solid from full_at onwards."""
-    g = Image.new("L", (w, 1))
-    for x in range(w):
-        u = min(1.0, x / (w * full_at))
-        g.putpixel((x, 0), int(255 * u * u * (3 - 2 * u)))
-    return g.resize((w, h))
-
-
 def _grain(img, amount=6, seed=3):
     """A little film grain so a flat ground reads like printed series art."""
     import random
@@ -182,36 +201,54 @@ def _grain(img, amount=6, seed=3):
     return ImageChops.add(img, noise, scale=1.0, offset=-128)
 
 
-def face_box(photo):
-    """(cx, cy, h) of the main face as fractions of the photo, or None."""
+def faces_in(photo):
+    """[(cx, cy, h, score)] for every face in the photo, as fractions; [] if none."""
     try:
         import numpy as np
         import reframe
         det = reframe._load_detector()
         if det[0] == "none":
-            return None
-        faces = reframe._detect(np.asarray(photo.convert("RGB"))[:, :, ::-1].copy(), det)
+            return []
+        return reframe._detect(np.asarray(photo.convert("RGB"))[:, :, ::-1].copy(), det)
     except Exception:
-        return None
-    if not faces:
-        return None
-    return max(faces, key=lambda f: f[2] * f[3])[:3]
+        return []
 
 
-def _speaker_panel(photo, w, h):
-    """Crop the photo to w x h with the speaker's face centred across and about a
-    third of the way down, sized so head and shoulders fill the panel."""
-    fb = face_box(photo)
-    cx, cy, fh = fb if fb else (0.5, 0.35, None)
-    s = max(w / photo.width, h / photo.height)
-    if fh:                                          # face about 1/6 of the panel height
-        s = max(s, (h / 6) / (fh * photo.height))
-    s = min(s, max(w / photo.width, h / photo.height) * 3)     # never mush a small face
-    big = photo.resize((max(w, round(photo.width * s)), max(h, round(photo.height * s))),
-                       Image.LANCZOS)
-    x = min(max(0, round(big.width * cx - w * 0.5)), big.width - w)
-    y = min(max(0, round(big.height * cy - h * 0.34)), big.height - h)
-    return big.crop((x, y, x + w, y + h))
+def face_box(photo):
+    """(cx, cy, h) of the main face as fractions of the photo, or None."""
+    faces = faces_in(photo)
+    return max(faces, key=lambda f: f[2] * f[3])[:3] if faces else None
+
+
+def _full_bleed(photo, ground):
+    """The photo across the whole frame, the main face kept right of the text,
+    shaded into the series' ground on the left and along the bottom for type."""
+    from PIL import ImageChops, ImageEnhance
+    faces = faces_in(photo)
+    group = len(faces) >= 3                        # a band, a crowd: keep everyone in
+    if group:
+        cx = sum(f[0] for f in faces) / len(faces)
+        cy = sum(f[1] for f in faces) / len(faces)
+    elif faces:
+        cx, cy = max(faces, key=lambda f: f[2] * f[3])[:2]
+    else:
+        cx, cy = 0.5, 0.45
+    target = 0.62 if group else 0.68               # subject this far across, clear of the type
+    s = cover = max(TW / photo.width, TH / photo.height)
+    if faces and not group:                        # zoom in just enough to move it there
+        need = max(target * TW / max(cx, 0.05), (1 - target) * TW / max(1 - cx, 0.05))
+        s = min(max(cover, need / photo.width), cover * 1.8)
+    big = photo.resize((round(photo.width * s), round(photo.height * s)), Image.LANCZOS)
+    x = min(max(0, round(big.width * cx - TW * target)), big.width - TW)
+    y = min(max(0, round(big.height * cy - TH * 0.4)), big.height - TH)
+    img = ImageEnhance.Color(big.crop((x, y, x + TW, y + TH))).enhance(0.9)
+    left = Image.new("L", (TW, 1))
+    for i in range(TW):
+        u = min(1.0, i / (TW * 0.55))
+        left.putpixel((i, 0), int(225 * (1 - u * u * (3 - 2 * u))))
+    left = left.resize((TW, TH))
+    low = Image.linear_gradient("L").resize((TW, TH)).point(lambda v: int(max(0, v - 150) * 1.2))
+    return Image.composite(Image.new("RGB", (TW, TH), ground), img, ImageChops.lighter(left, low))
 
 
 def _title_lines(text, fonts_dir, max_w, sizes, max_lines):
@@ -224,9 +261,9 @@ def _title_lines(text, fonts_dir, max_w, sizes, max_lines):
 
 
 def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art_path=None):
-    """The series art leads. With a photo of the preacher: series lockup and title
-    on the left, the preacher on the right fading into the series' ground. With
-    no photo: the lockup large and centred, the title below it."""
+    """The series art leads: a full-bleed photo with the lockup and title over its
+    shaded left side, or, with no photo, the lockup large and centred and the
+    title below it."""
     art = Image.open(art_path).convert("RGBA") if art_path else None
     colours = (palette_from_art(art) if art else None) or {
         "ground": rd.hex_rgb(brand["ink"]), "text": rd.hex_rgb(brand["offwhite"]),
@@ -252,25 +289,22 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
         return mark.height
 
     if photo_path:
-        panel_w = 720
-        photo = _speaker_panel(Image.open(photo_path).convert("RGB"), panel_w, TH)
-        img.paste(photo, (TW - panel_w, 0), _fade(panel_w, TH))
-        x, y = 64, 64
+        img = _full_bleed(Image.open(photo_path).convert("RGB"), ink)
+        d = ImageDraw.Draw(img)
+        x = 60
         if lockup:
-            lk = _contain(lockup, 520, 230)
-            img.paste(lk, (x - 8, y), lk)
-            y += lk.height
+            lk = _contain(lockup, 480, 210)
+            img.paste(lk, (x - 14, 52), lk)
         else:
-            y += brand_mark(x, y)
-        f, size, lines = _title_lines(title, fonts_dir, 560, (108, 96, 86, 76, 66, 58), 3)
+            brand_mark(x, 56)
+        f, size, lines = _title_lines(title, fonts_dir, 640, (104, 92, 80, 70, 62), 2)
         lead = int(size * 1.02)
-        y = max(y + 40 + size, TH - 150 - lead * (len(lines) - 1))
+        y = TH - (118 if scripture else 70) - lead * (len(lines) - 1)
         for i, line in enumerate(lines):
             d.text((x, y + i * lead), line, font=f, fill=off, anchor="ls")
-        y += lead * (len(lines) - 1)
         if scripture:
-            rd.draw_tracked(d, x + 2, y + 62, scripture, rd.font("semibold", 32, fonts_dir),
-                            accent, tracking=3)
+            rd.draw_tracked(d, x + 2, y + lead * (len(lines) - 1) + 56, scripture,
+                            rd.font("semibold", 32, fonts_dir), accent, tracking=3)
     else:
         top, bottom = 56, 48
         f, size, lines = _title_lines(title, fonts_dir, 1120, (104, 92, 80, 70, 60), 2)
@@ -329,18 +363,15 @@ def make(drive, entry, service_date, sermons_folder, workdir):
         print(f"    ! no series art for {series_key(series) or 'this sermon'!r} "
               f"in Series Graphics; using the brand mark", flush=True)
 
-    photos_root = _folder(drive, "THUMBNAIL_PHOTOS_FOLDER_ID", "Thumbnail Photos", sermons_folder)
-    preacher = (entry or {}).get("preacher") or ""
-    sub = next((f for f in sc.list_folder(drive, photos_root) if f.get("mimeType") == FOLDER_MIME
-                and _norm(f["name"]) == _norm(preacher)), None)
-    photo = pick_photo(sc.list_folder(drive, sub["id"]), service_date) if sub else None
+    photo = choose_photo(drive, _folder(drive, "THUMBNAIL_PHOTOS_FOLDER_ID", "Thumbnail Photos",
+                                        sermons_folder),
+                         (entry or {}).get("preacher") or "", service_date)
     if photo:
         photo_path = os.path.join(workdir, "photo" + os.path.splitext(photo["name"])[1])
         sc.download(drive, photo["id"], photo_path)
         print(f"    photo: {photo['name']}", flush=True)
     else:
-        print(f"    no photos of {preacher or 'the preacher'} in Thumbnail Photos; "
-              f"series art only", flush=True)
+        print("    no thumbnail photos found; series art only", flush=True)
 
     out = render(entry, service_date, brand, sc.FONTS_DIR,
                  os.path.join(workdir, f"Thumbnail {service_date.isoformat()}.jpg"),

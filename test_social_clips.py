@@ -225,13 +225,38 @@ with tempfile.TemporaryDirectory() as tmp:
         im = Image.open(out)
         check(f"thumbnail {label} is 1280x720", im.size == (1280, 720))
         check(f"thumbnail {label} under 2 MB", os.path.getsize(out) < 2_000_000)
-    panel = T._speaker_panel(_Im.new("RGB", (3000, 2000), (90, 80, 70)), 720, 720)
-    check("speaker panel is the panel size", panel.size == (720, 720))
+    check("full-bleed fills the frame", T._full_bleed(_Im.new("RGB", (3000, 2000), (90, 80, 70)),
+                                                       (25, 25, 25)).size == (1280, 720))
     check("no face found is not an error", T.face_box(_Im.new("RGB", (400, 300), (0, 0, 0))) is None)
     check("series look uses the art's ground",
           Image.open(out).convert("RGB").getpixel((20, 700))[0] > 120)
     T.render(None, d1, brand, fonts, os.path.join(tmp, "n.jpg"))
     check("thumbnail without a planning entry", os.path.exists(os.path.join(tmp, "n.jpg")))
+
+
+# alternate weeks: preacher, then community; either stands in for the other
+check("preacher on even weeks", T.photo_turn(_date(2026, 10, 4)) == "preacher")      # ISO week 40
+check("community on odd weeks", T.photo_turn(_date(2026, 10, 11)) == "community")      # ISO week 41
+_tree = {"root": [{"id": "pf", "name": "Peter Frey", "mimeType": T.FOLDER_MIME},
+                  {"id": "cm", "name": "Community", "mimeType": T.FOLDER_MIME},
+                  {"id": "x", "name": "stray.jpg", "mimeType": "image/jpeg"}],
+         "pf": [{"id": "p1", "name": "Peter 1.jpg"}], "cm": [{"id": "c1", "name": "Band.jpg"}]}
+_real_list = sc.list_folder
+sc.list_folder = lambda drive, fid: _tree.get(fid, [])
+try:
+    check("preacher week uses his folder",
+          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 4))["id"] == "p1")
+    check("community week uses Community",
+          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 11))["id"] == "c1")
+    check("guest with no folder gets a community photo",
+          T.choose_photo(None, "root", "Brentley Wright", _date(2026, 10, 4))["id"] == "c1")
+    _tree["cm"] = []
+    check("empty Community falls back to the preacher",
+          T.choose_photo(None, "root", "Peter Frey", _date(2026, 10, 11))["id"] == "p1")
+    check("loose photos in the root are never used",
+          T.choose_photo(None, "root", "Nobody", _date(2026, 10, 11)) is None)
+finally:
+    sc.list_folder = _real_list
 
 
 class _BrokenDrive:

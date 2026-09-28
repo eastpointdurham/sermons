@@ -78,21 +78,21 @@ Drive › Social Drafts › `<date> <title>`:
 
 ## Thumbnails
 
-**Paused** until you switch them on: set the `AUTO_THUMBNAILS` repository variable
-to `1`. `thumbnail.py` makes each draft's 1280×720 thumbnail, led by the series art
-and in its colours:
-
-- With a photo of that week's preacher: the series lockup and sermon title on the
-  left, the preacher on the right (cropped around the face), fading into the
-  series' ground.
-- Without one (e.g. a guest): the series lockup large and centred, the title below.
+On (the `AUTO_THUMBNAILS` repository variable is `1`; set it to anything else to
+pause). `thumbnail.py` makes each draft's 1280×720 thumbnail, led by the series art
+and in its colours: a full-bleed photo shaded into the series' ground on the left,
+the series lockup top left, the sermon title and scripture bottom left. The photo
+alternates weekly: the preacher on even ISO weeks, a community moment on odd ones.
 
 It reads three Drive folders next to "Sermons":
 
 - **Series Graphics**: when a series starts, save its key art from Canva
   (Share › Google Drive), named after the series (e.g. `ALL IN.png`).
-- **Thumbnail Photos**: one subfolder per preacher, named as in the planning doc
-  (`Peter Frey`). Add approved preaching shots; one is used per week, in rotation.
+- **Thumbnail Photos**: `Peter Frey` (one folder per preacher, named as in the
+  planning doc) and `Community`. Only photos in these folders are ever used, so put
+  in approved shots only: people who are happy to be on YouTube, no children as the
+  focus. A guest with no folder gets a community photo; an empty folder hands over
+  to the other one.
 - **Thumbnails**: a copy of every thumbnail made.
 
 YouTube only accepts custom thumbnails from a phone-verified channel. To remake one:
