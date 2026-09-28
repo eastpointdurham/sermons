@@ -78,24 +78,25 @@ Drive › Social Drafts › `<date> <title>`:
 
 ## Thumbnails
 
-**Paused.** The team designs its own thumbnails, so uploads no longer set one.
-Set the `AUTO_THUMBNAILS` repository variable to `1` to turn this back on.
+**Paused** until you switch them on: set the `AUTO_THUMBNAILS` repository variable
+to `1`. `thumbnail.py` makes each draft's 1280×720 thumbnail, led by the series art
+and in its colours:
 
-`thumbnail.py` makes each draft's 1280×720 thumbnail from three Drive folders next to
-"Sermons" (created on first run):
+- With a photo of that week's preacher: the series lockup and sermon title on the
+  left, the preacher on the right (cropped around the face), fading into the
+  series' ground.
+- Without one (e.g. a guest): the series lockup large and centred, the title below.
 
-- **Series Graphics**: when a series starts, export its key art from Canva
-  (Share › Google Drive) and name it after the series, e.g. `ALL IN.png`. The
-  thumbnail places the art top left and takes its colours from it (ground, title,
-  brush underline, scripture). With no art, it uses the brand colours and sunburst.
-- **Thumbnail Photos**: approved photos only (people who are fine appearing on
-  YouTube). A subfolder named after a series, e.g. `ALL IN`, is used for that
-  series; otherwise the whole folder. The photo rotates weekly.
+It reads three Drive folders next to "Sermons":
+
+- **Series Graphics**: when a series starts, save its key art from Canva
+  (Share › Google Drive), named after the series (e.g. `ALL IN.png`).
+- **Thumbnail Photos**: one subfolder per preacher, named as in the planning doc
+  (`Peter Frey`). Add approved preaching shots; one is used per week, in rotation.
 - **Thumbnails**: a copy of every thumbnail made.
 
-YouTube only accepts custom thumbnails from a phone-verified channel
-(youtube.com/verify). To remake one after adding art or photos: Actions ›
-**Make Sermon Thumbnail** › Run workflow with the Sunday's date.
+YouTube only accepts custom thumbnails from a phone-verified channel. To remake one:
+Actions › **Make Sermon Thumbnail** › Run workflow with the Sunday's date.
 
 ## Tests
 

@@ -2,23 +2,23 @@
 """
 YouTube thumbnails in the sermon series' look, drawn with Pillow.
 
-1280x720 in the current series' look: the series art (exported from Canva) top
-left, and its own colours (sampled from that art) for the ground, the sermon
-title in Oakes Grotesk caps, the brush underline and the scripture. An approved
-photo sits on the right, fading into the ground. With no series art yet, the
-brand colours stand in (ink, off-white, sage).
+1280x720, led by the series art (exported from Canva) and in its own colours
+(sampled from that art). With a photo of the week's preacher: the series lockup
+and the sermon title on the left, the preacher on the right, cropped around his
+face and fading into the series' ground. Without one (a guest with no photos
+yet): the lockup large and centred, the title below. With no series art yet,
+the brand colours and sunburst stand in.
 
 Everything comes from three Drive folders next to "Sermons" (created on first
 use, or set by id):
   Series Graphics    SERIES_GRAPHICS_FOLDER_ID   Canva export per series, named
                                                  after it, e.g. "ALL IN.png"
-  Thumbnail Photos   THUMBNAIL_PHOTOS_FOLDER_ID  approved photos; a subfolder
-                                                 named after a series is used
-                                                 for that series
+  Thumbnail Photos   THUMBNAIL_PHOTOS_FOLDER_ID  a subfolder per preacher, named
+                                                 as in the planning doc ("Peter
+                                                 Frey"); rotates weekly
   Thumbnails         THUMBNAILS_FOLDER_ID        a copy of every thumbnail made
 
-Missing art or photos never stop an upload: the thumbnail falls back to the
-brand look (sunburst, series name in type).
+Missing art or photos never stop an upload.
 
 Backfill one sermon that is already on YouTube:
   python thumbnail.py 2026-09-27
@@ -35,10 +35,6 @@ import reel_design as rd
 import social_clips as sc
 
 TW, TH = 1280, 720
-MARGIN = 72
-TEXT_W = 640                  # left column
-PHOTO_X = 560                 # photo starts here and fades in over FADE px
-FADE = 300
 
 IMAGE_RE = re.compile(r"\.(png|jpe?g|webp)$", re.I)
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -80,15 +76,6 @@ def pick_photo(files, service_date):
 # drawing
 # --------------------------------------------------------------------------
 
-def _cover(img, w, h, focus_y=0.4):
-    """Scale to cover w x h, cropping around the upper-middle (where faces are)."""
-    s = max(w / img.width, h / img.height)
-    img = img.resize((max(w, round(img.width * s)), max(h, round(img.height * s))), Image.LANCZOS)
-    x = (img.width - w) // 2
-    y = min(max(0, round(img.height * focus_y - h / 2)), img.height - h)
-    return img.crop((x, y, x + w, y + h))
-
-
 def trim_to_content(art, pad=0.04):
     """Crop a full-frame design (e.g. a 16:9 wallpaper) down to its lockup: drop
     the margins that match the background colour sampled at the corners."""
@@ -108,15 +95,6 @@ def trim_to_content(art, pad=0.04):
 def _contain(img, w, h):
     s = min(w / img.width, h / img.height)
     return img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
-
-
-def _fit_title(text, fonts_dir, max_w, max_lines=3):
-    for size in (96, 88, 80, 72, 64, 58, 52):
-        f = rd.font("bold", size, fonts_dir)
-        lines = rd.balanced_wrap(text, f, max_w)
-        if len(lines) <= max_lines and all(rd.text_width(l, f) <= max_w for l in lines):
-            return f, size, lines
-    return f, size, lines
 
 
 def _lum(c):
@@ -172,66 +150,135 @@ def _hex(c):
     return "#%02x%02x%02x" % c
 
 
+def _fade(w, h, full_at=0.55):
+    """Left-to-right mask: clear at the left edge, solid from full_at onwards."""
+    g = Image.new("L", (w, 1))
+    for x in range(w):
+        u = min(1.0, x / (w * full_at))
+        g.putpixel((x, 0), int(255 * u * u * (3 - 2 * u)))
+    return g.resize((w, h))
+
+
+def _grain(img, amount=6, seed=3):
+    """A little film grain so a flat ground reads like printed series art."""
+    import random
+    from PIL import ImageChops
+    rnd = random.Random(seed)
+    noise = Image.new("L", (img.width // 2, img.height // 2))
+    noise.putdata([128 + rnd.randint(-amount, amount) for _ in range(noise.width * noise.height)])
+    noise = noise.resize(img.size).convert("RGB")
+    return ImageChops.add(img, noise, scale=1.0, offset=-128)
+
+
+def face_box(photo):
+    """(cx, cy, h) of the main face as fractions of the photo, or None."""
+    try:
+        import numpy as np
+        import reframe
+        det = reframe._load_detector()
+        if det[0] == "none":
+            return None
+        faces = reframe._detect(np.asarray(photo.convert("RGB"))[:, :, ::-1].copy(), det)
+    except Exception:
+        return None
+    if not faces:
+        return None
+    return max(faces, key=lambda f: f[2] * f[3])[:3]
+
+
+def _speaker_panel(photo, w, h):
+    """Crop the photo to w x h with the speaker's face centred across and about a
+    third of the way down, sized so head and shoulders fill the panel."""
+    fb = face_box(photo)
+    cx, cy, fh = fb if fb else (0.5, 0.35, None)
+    s = max(w / photo.width, h / photo.height)
+    if fh:                                          # face about 1/6 of the panel height
+        s = max(s, (h / 6) / (fh * photo.height))
+    s = min(s, max(w / photo.width, h / photo.height) * 3)     # never mush a small face
+    big = photo.resize((max(w, round(photo.width * s)), max(h, round(photo.height * s))),
+                       Image.LANCZOS)
+    x = min(max(0, round(big.width * cx - w * 0.5)), big.width - w)
+    y = min(max(0, round(big.height * cy - h * 0.34)), big.height - h)
+    return big.crop((x, y, x + w, y + h))
+
+
+def _title_lines(text, fonts_dir, max_w, sizes, max_lines):
+    for size in sizes:
+        f = rd.font("bold", size, fonts_dir)
+        lines = rd.balanced_wrap(text, f, max_w)
+        if len(lines) <= max_lines and all(rd.text_width(l, f) <= max_w for l in lines):
+            return f, size, lines
+    return f, size, lines
+
+
 def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art_path=None):
+    """The series art leads. With a photo of the preacher: series lockup and title
+    on the left, the preacher on the right fading into the series' ground. With
+    no photo: the lockup large and centred, the title below it."""
     art = Image.open(art_path).convert("RGBA") if art_path else None
     colours = (palette_from_art(art) if art else None) or {
         "ground": rd.hex_rgb(brand["ink"]), "text": rd.hex_rgb(brand["offwhite"]),
         "accent": rd.hex_rgb(brand["sage"])}
-    ink, off, sage = colours["ground"], colours["text"], colours["accent"]
-    img = Image.new("RGB", (TW, TH), ink)
+    ink, off, accent = colours["ground"], colours["text"], colours["accent"]
+    img = _grain(Image.new("RGB", (TW, TH), ink))
+    d = ImageDraw.Draw(img)
+    entry = entry or {}
+    series = entry.get("series") or ""
+    title = (entry.get("title") or "Sunday " + service_date.strftime("%B %-d")).upper()
+    scripture = (entry.get("scripture") or "").upper()
+    lockup = trim_to_content(art) if art else None
+
+    def brand_mark(x, y, center=False):
+        """No series art yet: the sunburst and the series name in type."""
+        mark = rd.sunburst(72, _hex(accent))
+        label = rd.font("semibold", 30, fonts_dir)
+        name = series_key(series).upper() or "EASTPOINT CHURCH"
+        w = mark.width + 20 + rd.text_width(name, label, 4)
+        x = int((TW - w) // 2) if center else x
+        img.paste(mark, (x, y), mark)
+        rd.draw_tracked(d, x + mark.width + 20, y + 50, name, label, accent, tracking=4)
+        return mark.height
 
     if photo_path:
-        photo = _cover(Image.open(photo_path).convert("RGB"), TW - PHOTO_X, TH)
-        mask = Image.new("L", photo.size, 255)
-        md = ImageDraw.Draw(mask)
-        for x in range(FADE):
-            u = x / FADE
-            md.line([(x, 0), (x, TH)], fill=int(255 * u * u * (3 - 2 * u)))
-        img.paste(photo, (PHOTO_X, 0), mask)
+        panel_w = 720
+        photo = _speaker_panel(Image.open(photo_path).convert("RGB"), panel_w, TH)
+        img.paste(photo, (TW - panel_w, 0), _fade(panel_w, TH))
+        x, y = 64, 64
+        if lockup:
+            lk = _contain(lockup, 520, 230)
+            img.paste(lk, (x - 8, y), lk)
+            y += lk.height
+        else:
+            y += brand_mark(x, y)
+        f, size, lines = _title_lines(title, fonts_dir, 560, (108, 96, 86, 76, 66, 58), 3)
+        lead = int(size * 1.02)
+        y = max(y + 40 + size, TH - 150 - lead * (len(lines) - 1))
+        for i, line in enumerate(lines):
+            d.text((x, y + i * lead), line, font=f, fill=off, anchor="ls")
+        y += lead * (len(lines) - 1)
+        if scripture:
+            rd.draw_tracked(d, x + 2, y + 62, scripture, rd.font("semibold", 32, fonts_dir),
+                            accent, tracking=3)
     else:
-        mark = rd.sunburst(760, _hex(sage))
-        mark.putalpha(mark.getchannel("A").point(lambda a: a * 30 // 100))
-        img.paste(mark, (TW - 520, (TH - mark.height) // 2), mark)
-
-    d = ImageDraw.Draw(img)
-    y = MARGIN
-    series = (entry or {}).get("series") or ""
-    if art:
-        art = _contain(trim_to_content(art), 440, 160)
-        img.paste(art, (MARGIN, y), art)
-        y += art.height + 40
-    else:
-        mark = rd.sunburst(64, _hex(sage))
-        img.paste(mark, (MARGIN, y), mark)
-        if series:
-            label = rd.font("semibold", 28, fonts_dir)
-            rd.draw_tracked(d, MARGIN + 84, y + 44, series_key(series).upper(), label,
-                            sage, tracking=4)
-        y += 64 + 48
-
-    title = ((entry or {}).get("title") or (entry or {}).get("scripture")
-             or "Sunday " + service_date.strftime("%B %-d")).upper()
-    f, size, lines = _fit_title(title, fonts_dir, TEXT_W)
-    lead = int(size * 1.04)
-    y += size
-    for line in lines:
-        d.text((MARGIN, y), line, font=f, fill=off, anchor="ls")
-        y += lead
-    y -= lead
-    widest = max(rd.text_width(l, f) for l in lines)
-    brush = rd.brush_stroke(int(min(widest, TEXT_W) * 0.8), 10, _hex(sage), seed=11)
-    img.paste(brush, (MARGIN - 6, y + 14), brush)
-    y += 14 + brush.height + 46
-
-    scripture = (entry or {}).get("scripture")
-    if scripture:
-        rd.draw_tracked(d, MARGIN, y, scripture.upper(), rd.font("semibold", 34, fonts_dir),
-                        sage, tracking=3)
-
-    if y < TH - MARGIN - 60:                       # room left for the sign-off
-        foot = rd.font("medium", 22, fonts_dir)
-        rd.draw_tracked(d, MARGIN, TH - MARGIN + 10, "EASTPOINT CHURCH  ·  DURHAM", foot,
-                        off, tracking=4)
+        top, bottom = 56, 48
+        f, size, lines = _title_lines(title, fonts_dir, 1120, (104, 92, 80, 70, 60), 2)
+        lead = int(size * 1.02)
+        block = size + lead * (len(lines) - 1) + (58 if scripture else 0)   # title + scripture
+        if lockup:                  # the lockup takes whatever height the title leaves
+            lk = _contain(lockup, 1000, min(360, TH - top - bottom - block - 44))
+            img.paste(lk, ((TW - lk.width) // 2, top), lk)
+            y = top + lk.height
+        else:
+            y = top + 60 + brand_mark(0, top + 60, center=True)
+        y = max(y + 40 + size, TH - bottom - block + size)
+        for i, line in enumerate(lines):
+            tw = rd.text_width(line, f)
+            d.text(((TW - tw) / 2, y + i * lead), line, font=f, fill=off, anchor="ls")
+        y += lead * (len(lines) - 1)
+        if scripture:
+            sf = rd.font("semibold", 32, fonts_dir)
+            sw = rd.text_width(scripture, sf, 3)
+            rd.draw_tracked(d, (TW - sw) / 2, y + 58, scripture, sf, accent, tracking=3)
 
     img.save(out_path, "JPEG", quality=90, optimize=True)   # YouTube limit is 2 MB
     return out_path
@@ -271,15 +318,17 @@ def make(drive, entry, service_date, sermons_folder, workdir):
               f"in Series Graphics; using the brand mark", flush=True)
 
     photos_root = _folder(drive, "THUMBNAIL_PHOTOS_FOLDER_ID", "Thumbnail Photos", sermons_folder)
-    items = sc.list_folder(drive, photos_root)
-    sub = next((f for f in items if f.get("mimeType") == FOLDER_MIME
-                and matches_series(f["name"], series)), None)
-    photo = pick_photo(sc.list_folder(drive, sub["id"]) if sub else items, service_date)
+    preacher = (entry or {}).get("preacher") or ""
+    sub = next((f for f in sc.list_folder(drive, photos_root) if f.get("mimeType") == FOLDER_MIME
+                and _norm(f["name"]) == _norm(preacher)), None)
+    photo = pick_photo(sc.list_folder(drive, sub["id"]), service_date) if sub else None
     if photo:
         photo_path = os.path.join(workdir, "photo" + os.path.splitext(photo["name"])[1])
         sc.download(drive, photo["id"], photo_path)
+        print(f"    photo: {photo['name']}", flush=True)
     else:
-        print("    ! Thumbnail Photos is empty; thumbnail has no photo", flush=True)
+        print(f"    no photos of {preacher or 'the preacher'} in Thumbnail Photos; "
+              f"series art only", flush=True)
 
     out = render(entry, service_date, brand, sc.FONTS_DIR,
                  os.path.join(workdir, f"Thumbnail {service_date.isoformat()}.jpg"),

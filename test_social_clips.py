@@ -222,6 +222,9 @@ with tempfile.TemporaryDirectory() as tmp:
         im = Image.open(out)
         check(f"thumbnail {label} is 1280x720", im.size == (1280, 720))
         check(f"thumbnail {label} under 2 MB", os.path.getsize(out) < 2_000_000)
+    panel = T._speaker_panel(_Im.new("RGB", (3000, 2000), (90, 80, 70)), 720, 720)
+    check("speaker panel is the panel size", panel.size == (720, 720))
+    check("no face found is not an error", T.face_box(_Im.new("RGB", (400, 300), (0, 0, 0))) is None)
     check("series look uses the art's ground",
           Image.open(out).convert("RGB").getpixel((20, 700))[0] > 120)
     T.render(None, d1, brand, fonts, os.path.join(tmp, "n.jpg"))
