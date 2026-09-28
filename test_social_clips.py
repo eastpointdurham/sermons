@@ -182,6 +182,16 @@ two = _Im.new("RGBA", (400, 200), (242, 232, 218, 255))
 _Dr.Draw(two).rectangle((0, 120, 400, 200), fill=(142, 74, 73, 255))
 pal = T.palette_from_art(two)
 check("palette ground is the dark colour", pal and pal["ground"][0] < 160 and pal["text"][0] > 230)
+wall = _Im.new("RGBA", (1920, 1080), (30, 30, 30, 255))
+_wd = _Dr.Draw(wall)
+_wd.rectangle((700, 450, 1200, 560), fill=(236, 234, 228, 255))     # thin lockup
+_wd.rectangle((560, 470, 680, 480), fill=(80, 132, 132, 255))       # teal mark
+wp = T.palette_from_art(wall)
+check("wallpaper: ground is the background", wp and wp["ground"] == (30, 30, 30))
+check("wallpaper: text is the lockup's off-white", wp and min(wp["text"]) > 220)
+check("wallpaper: accent is the teal mark", wp and wp["accent"][1] > wp["accent"][0] + 30)
+tw, th = T.trim_to_content(wall).size
+check("wallpaper trimmed to its lockup", tw < 900 and th < 250)
 check("flat art gives no palette", T.palette_from_art(_Im.new("RGBA", (50, 50), (90, 90, 90, 255))) is None)
 with tempfile.TemporaryDirectory() as tmp:
     entry = {"title": "Are you all in?", "scripture": "Mark 1:14\u201320", "series": series}

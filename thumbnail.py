@@ -89,6 +89,22 @@ def _cover(img, w, h, focus_y=0.4):
     return img.crop((x, y, x + w, y + h))
 
 
+def trim_to_content(art, pad=0.04):
+    """Crop a full-frame design (e.g. a 16:9 wallpaper) down to its lockup: drop
+    the margins that match the background colour sampled at the corners."""
+    from PIL import ImageChops
+    rgb = art.convert("RGB")
+    bg = _background(rgb)
+    diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, bg)).convert("L")
+    box = diff.point(lambda v: 255 if v > 40 else 0).getbbox()
+    if not box:
+        return art
+    px, py = int(rgb.width * pad), int(rgb.height * pad)
+    box = (max(0, box[0] - px), max(0, box[1] - py),
+           min(rgb.width, box[2] + px), min(rgb.height, box[3] + py))
+    return art.crop(box)
+
+
 def _contain(img, w, h):
     s = min(w / img.width, h / img.height)
     return img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
@@ -111,22 +127,44 @@ def _sat(c):
     return (max(c) - min(c)) / 255
 
 
+def _background(rgb):
+    corners = [rgb.getpixel(p) for p in ((0, 0), (rgb.width - 1, 0),
+                                         (0, rgb.height - 1), (rgb.width - 1, rgb.height - 1))]
+    return tuple(sorted(c[i] for c in corners)[1] for i in range(3))
+
+
 def palette_from_art(art):
-    """The series' own colours: ground = its darkest common colour, text = its
-    lightest, accent = its most saturated. None if the art is too flat to use."""
+    """The series' own colours: ground = the art's background, text = the
+    lockup colour furthest from it, accent = the lockup's saturated colour.
+    Sampled from the lockup pixels only, so thin type and marks on a big
+    wallpaper still count. None if there is too little contrast to set type."""
     rgb = Image.new("RGB", art.size, (255, 255, 255))
     rgb.paste(art, mask=art.getchannel("A") if art.mode == "RGBA" else None)
-    q = rgb.resize((160, 90)).quantize(8, method=Image.Quantize.MEDIANCUT)
+    rgb = rgb.resize((480, round(480 * rgb.height / rgb.width)))
+    ground = _background(rgb)
+    ink = [p for p in rgb.getdata()
+           if max(abs(a - b) for a, b in zip(p, ground)) > 40]
+    if len(ink) < 50:
+        return None
+    swatch = Image.new("RGB", (len(ink), 1))
+    swatch.putdata(ink)
+    q = swatch.quantize(6, method=Image.Quantize.MEDIANCUT)
     pal = q.getpalette()
-    counts = sorted(q.getcolors(), reverse=True)
-    cols = [tuple(pal[i * 3:i * 3 + 3]) for n, i in counts if n >= 160 * 90 * 0.02]
-    if len(cols) < 2:
+    cols = [tuple(pal[i * 3:i * 3 + 3]) for n, i in q.getcolors() if n >= len(ink) * 0.01]
+    text = max(cols, key=lambda c: abs(_lum(c) - _lum(ground)))
+    if abs(_lum(text) - _lum(ground)) < 90:        # not enough contrast to set type
         return None
-    ground, text = min(cols, key=_lum), max(cols, key=_lum)
-    if _lum(text) - _lum(ground) < 90:             # not enough contrast to set type
-        return None
-    rest = [c for c in cols if c not in (ground, text)]
-    accent = max(rest, key=_sat) if rest and max(_sat(c) for c in rest) > 0.15 else text
+    # accent: the typical colour of the lockup's saturated pixels (arrows,
+    # underlines), which quantizing would blend into the grey anti-aliasing
+    groups = {}
+    for p in ink:
+        if _sat(p) > 0.2 and max(abs(a - b) for a, b in zip(p, text)) > 60:
+            groups.setdefault(tuple(c // 40 for c in p), []).append(p)
+    best = max(groups.values(), key=len, default=[])
+    if len(best) >= len(ink) * 0.01:
+        accent = tuple(sum(p[i] for p in best) // len(best) for i in range(3))
+    else:
+        accent = text
     return {"ground": ground, "text": text, "accent": accent}
 
 
@@ -159,7 +197,7 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
     y = MARGIN
     series = (entry or {}).get("series") or ""
     if art:
-        art = _contain(art, 400, 150)
+        art = _contain(trim_to_content(art), 440, 160)
         img.paste(art, (MARGIN, y), art)
         y += art.height + 40
     else:
