@@ -156,5 +156,40 @@ check("before cutoff skipped", U.on_or_after_cutoff(_d(2026, 9, 27), "2026-10-04
 check("on cutoff kept", U.on_or_after_cutoff(_d(2026, 10, 4), "2026-10-04"), True)
 check("after cutoff kept", U.on_or_after_cutoff(_d(2026, 10, 11), "2026-10-04"), True)
 
+# Planning doc with the newest series on top and a bare "2025" heading above the
+# older ones (the doc's layout since Aug 2026).
+class _FakeDocs:
+    def __init__(self, paras):
+        self.paras = paras
+    def documents(self):
+        return self
+    def get(self, documentId):
+        return self
+    def execute(self):
+        content = [{"paragraph": {"elements": [{"textRun": {"content": t + "\n",
+                    "textStyle": {"bold": b}}}]}} for t, b in self.paras]
+        return {"body": {"content": content}}
+
+_start = U.START_YEAR
+U.START_YEAR = 2026
+plan = U.read_planning_doc(_FakeDocs([
+    ("ALL IN: Following Jesus in the Gospel of Mark", True),
+    ("Sept 27 - Mark 1:14-20 - Are you all in?", False),
+    ("Dec. 27 - New Years Message", False),
+    ("2025", True),
+    ("Real Life Jesus", True),
+    ("Sept. 28 - “The Source of Real Life” – John 1:1-14", False),
+    ("Jan. 4 - Multiplying Disciples Together - Matthew 28:18-20", False),
+    ("Aug 16 - Luke 18:1-8  Don’t Lose Heart", False),
+]), "x")
+U.START_YEAR = _start
+check("top section is 2026", plan.get(date(2026, 9, 27), {}).get("title"), "Are you all in?")
+check("top section scripture", plan.get(date(2026, 9, 27), {}).get("scripture"), "Mark 1:14–20")
+check("top section series", plan.get(date(2026, 9, 27), {}).get("series"),
+      "ALL IN: Following Jesus in the Gospel of Mark")
+check("year heading resets to 2025", date(2025, 9, 28) in plan, True)
+check("rolls into 2026 after heading", date(2026, 1, 4) in plan, True)
+check("no stray 2027 dates", any(d.year == 2027 for d in plan), False)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

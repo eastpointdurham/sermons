@@ -15,7 +15,7 @@ Environment:
   GOOGLE_DRIVE_REFRESH_TOKEN                   Drive + Docs read/write
   GOOGLE_YOUTUBE_REFRESH_TOKEN                 YouTube upload
   SERMON_FOLDER_ID / PODCAST_FOLDER_ID / PLANNING_DOC_ID
-  PLANNING_DOC_START_YEAR                      default 2025
+  PLANNING_DOC_START_YEAR                      year of the doc's first dated line (default 2025)
   MAX_PER_RUN                                  default 1
   DRY_RUN                                      "1" to plan without uploading
 """
@@ -216,7 +216,9 @@ def read_planning_doc(docs, doc_id=None):
     """Return {date: {title, scripture, series, preacher}} for every dated line.
 
     Years are implicit in the doc, so we walk it in order and roll forward each
-    time the month goes backwards. START_YEAR anchors the first dated line.
+    time the month goes backwards. START_YEAR anchors the first dated line; a
+    line that is only a year (the doc's "**2025**" heading) resets it, since
+    newer series are added at the top of the doc.
     """
     doc = docs.documents().get(documentId=doc_id or PLANNING_DOC_ID).execute()
 
@@ -229,6 +231,11 @@ def read_planning_doc(docs, doc_id=None):
         runs = para.get("elements", [])
         text = "".join(r.get("textRun", {}).get("content", "") for r in runs).strip()
         if not text:
+            continue
+
+        heading = re.fullmatch(r"(20\d\d)", text.replace("*", "").strip())
+        if heading:
+            year, prev_month = int(heading.group(1)), None
             continue
 
         hit = match_doc_date_line(text)
