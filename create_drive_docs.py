@@ -42,7 +42,9 @@ def get_drive_service():
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
-        scopes=["https://www.googleapis.com/auth/drive.file"],
+        # Must match what the token was minted with (get_refresh_token.py drive);
+        # asking for any other scope, even a narrower one, fails with invalid_scope.
+        scopes=["https://www.googleapis.com/auth/drive"],
     )
     creds.refresh(Request())
     return build("drive", "v3", credentials=creds)
