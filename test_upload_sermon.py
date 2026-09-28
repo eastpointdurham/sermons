@@ -226,5 +226,19 @@ check("year heading resets to 2025", date(2025, 9, 28) in plan, True)
 check("rolls into 2026 after heading", date(2026, 1, 4) in plan, True)
 check("no stray 2027 dates", any(d.year == 2027 for d in plan), False)
 
+# A one-off sermon inside a series' run is marked "(standalone)" in the doc.
+plan2 = U.read_planning_doc(_FakeDocs([
+    ("ALL IN: Following Jesus in the Gospel of Mark", True),
+    ("Sept 27 - Mark 1:14-20 - Are you all in?", False),
+    ("Oct. 4 - Guest Preacher - Brentley Wright- Acts 3:1-10 - \u201cMore Than What I Asked For.\u201d (standalone)", False),
+    ("Oct. 11 - Mark 1:21-34 - Authority", False),
+]), "x")
+check("standalone has no series", plan2[date(2025, 10, 4)]["series"], "")
+check("standalone title unchanged", plan2[date(2025, 10, 4)]["title"], "More Than What I Asked For")
+check("series resumes after a standalone", plan2[date(2025, 10, 11)]["series"],
+      "ALL IN: Following Jesus in the Gospel of Mark")
+check("standalone description has no series line",
+      "Series:" in U.build_description(plan2[date(2025, 10, 4)], date(2026, 10, 4)), False)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

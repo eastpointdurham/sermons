@@ -271,7 +271,8 @@ def read_planning_doc(docs, doc_id=None):
             entries[key] = {
                 "title": title,
                 "scripture": scripture,
-                "series": series,
+                # "(standalone)" on the line: a one-off inside a series' run
+                "series": "" if re.search(r"\bstand-?\s?alone\b", text, re.I) else series,
                 "preacher": extract_preacher(text),
             }
     return entries
