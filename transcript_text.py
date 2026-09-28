@@ -37,7 +37,8 @@ def transcript_doc_html(title, scripture, preacher, service_date, transcript):
     then the sermon in paragraphs."""
     body = tidy(transcript) or "[Transcript not yet available]"
     # the polish step can title each chunk it cleans ("Sermon Transcript: ...")
-    body = re.sub(r"^(sermon )?transcript\b[^\n]*(\n+|$)", "", body, flags=re.I | re.M)
+    body = re.sub(r"^((sermon|cleaned|polished|clean)\s+)*transcript\b[^\n]*(\n+|$)", "", body,
+                  flags=re.I | re.M)
     paras = [p.strip() for p in body.split("\n\n") if p.strip()]
     byline = " · ".join(x for x in (scripture, preacher, service_date) if x)
     e = html.escape
