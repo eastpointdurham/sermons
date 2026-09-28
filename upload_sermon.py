@@ -274,8 +274,12 @@ def read_planning_doc(docs, doc_id=None):
 # metadata
 # --------------------------------------------------------------------------
 
+TITLE_SUFFIX = "Eastpoint Church Durham"
+
+
 def build_title(entry, service_date):
-    """`Title | Scripture | Preacher` — the convention build_site.py parses."""
+    """`Title | Scripture | Preacher | Eastpoint Church Durham`. build_site.py
+    parses the first three segments."""
     if entry and entry["title"]:
         head = entry["title"]
     elif entry and entry["scripture"]:
@@ -288,7 +292,8 @@ def build_title(entry, service_date):
     # take the preacher's name as the scripture reference and then fall back to
     # the default preacher — wrong on both counts.
     scripture = entry["scripture"] if entry and entry["scripture"] else ""
-    parts = [head, scripture, entry["preacher"] if entry else DEFAULT_PREACHER]
+    # The church name goes last, after the three segments build_site.py reads.
+    parts = [head, scripture, entry["preacher"] if entry else DEFAULT_PREACHER, TITLE_SUFFIX]
 
     title = " | ".join(parts)
     if len(title) > 100:

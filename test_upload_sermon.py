@@ -90,26 +90,27 @@ entry = {"title": "Praying for Immeasurably More", "scripture": "Ephesians 3:14�
          "series": '"Teach us to Pray"', "preacher": "Peter Frey"}
 title = U.build_title(entry, date(2026, 8, 9))
 check("title format",
-      title, "Praying for Immeasurably More | Ephesians 3:14–21 | Peter Frey")
-check("three segments", title.count("|"), 2)
+      title, "Praying for Immeasurably More | Ephesians 3:14–21 | Peter Frey | Eastpoint Church Durham")
+check("four segments", title.count("|"), 3)
 check("within YouTube limit", len(title) <= 100, True)
 
 guest = {"title": "Hearing From God", "scripture": "James 1:5–7",
          "series": "", "preacher": "Chris Hankins"}
 check("guest preacher in title",
       U.build_title(guest, date(2026, 6, 14)),
-      "Hearing From God | James 1:5–7 | Chris Hankins")
+      "Hearing From God | James 1:5–7 | Chris Hankins | Eastpoint Church Durham")
 
 # A very long title must still keep all three segments, or build_site.py drops it.
 longy = {"title": "A" * 140, "scripture": "Luke 18:1–8", "series": "", "preacher": "Peter Frey"}
 lt = U.build_title(longy, date(2026, 8, 16))
 check("long title truncated", len(lt) <= 100, True)
-check("long title keeps 3 segments", lt.count("|"), 2)
+check("long title keeps all segments", lt.count("|"), 3)
+check("long title keeps church name", lt.endswith("| Eastpoint Church Durham"), True)
 
 # No planning-doc entry at all.
 none_title = U.build_title(None, date(2026, 9, 6))
-check("fallback keeps 3 segments", none_title.count("|"), 2)
-check("fallback names preacher", none_title.endswith("Peter Frey"), True)
+check("fallback keeps all segments", none_title.count("|"), 3)
+check("fallback names preacher", none_title.split(" | ")[2], "Peter Frey")
 
 
 # --- round-trip through build_site.py's parser ------------------------------
