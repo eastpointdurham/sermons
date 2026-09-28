@@ -279,13 +279,16 @@ def polish_transcript(raw_text):
                     "- Remove false starts and immediate repetitions\n"
                     "- Keep ALL theological content and ideas intact â do not summarize or cut\n"
                     "- Preserve the preacher's natural voice and tone\n"
+                    "- The church is Eastpoint Church (one word) in Durham, NC\n"
+                    "- No headings, titles or markdown: paragraphs of plain text only\n"
                     "- Return only the cleaned text with no preamble or commentary\n\n"
                     f"TRANSCRIPT:\n{chunk}"
                 )}]
             )
             polished.append(msg.content[0].text.strip())
 
-        return "\n\n".join(polished)
+        from transcript_text import tidy
+        return tidy("\n\n".join(polished))
 
     except Exception as e:
         print(f"      polish error: {e}")

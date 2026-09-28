@@ -164,5 +164,35 @@ check("refusal fallback on", fc.sent.get("fallbacks"), "default")
 check("refusal leaves description alone",
       E.compose(sermon, FakeClaude([], stop_reason="refusal")), (None, None))
 
+# transcript tidying and the Drive doc layout ------------------------------------
+import transcript_text as TT
+check("church name joined", TT.fix_names("Good morning, East Point Church. East point, east-Point."),
+      "Good morning, Eastpoint Church. Eastpoint, Eastpoint.")
+check("unrelated words kept", TT.fix_names("the east pointed north"), "the east pointed north")
+raw = "# Sermon Transcript: Mark\n\n=====\n\nGood morning, **East Point**.\n\n\n\nSecond para."
+check("markdown stripped", TT.tidy(raw), "Sermon Transcript: Mark\n\nGood morning, Eastpoint.\n\nSecond para.")
+doc = TT.transcript_doc_html("Are You All In?", "Mark 1:14–20", "Peter Frey", "2026-09-27", raw)
+check("doc has a real heading", "<h1>Are You All In?</h1>" in doc, True)
+check("doc has no markdown marks", "#" not in doc and "=====" not in doc, True)
+check("doc drops the model's own title line", "Sermon Transcript" not in doc, True)
+check("doc paragraphs", doc.count("<p>"), 3)
+check("doc escapes text", "&lt;b&gt;" in TT.transcript_doc_html("t", "", "", "", "<b>x</b>"), True)
+check("doc byline has the service date", "2026-09-27" in doc, True)
+
+import json as _json, os as _os, tempfile as _tf
+import create_drive_docs as CD
+with _tf.TemporaryDirectory() as _d:
+    _cwd = _os.getcwd()
+    _os.chdir(_d)
+    try:
+        with open("uploaded_sermons.json", "w") as _f:
+            _json.dump([{"video_id": "RmUByaQNtOw", "service_date": "2026-09-27"}], _f)
+        check("doc dated by service date", CD.service_date({"id": "RmUByaQNtOw", "date": "2026-09-28"}),
+              "2026-09-27")
+        check("unknown video keeps YouTube date", CD.service_date({"id": "zzz", "date": "2026-09-28"}),
+              "2026-09-28")
+    finally:
+        _os.chdir(_cwd)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

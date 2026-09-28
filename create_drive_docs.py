@@ -24,10 +24,13 @@ try:
 except ImportError:
     raise SystemExit("Run: pip install anthropic")
 
+from transcript_text import tidy, transcript_doc_html
+
 
 TRANSCRIPTS_FOLDER = "1ge3-D-cI6pBKrcSt9qIaHdZjA_xYq2w8"
 OUTLINES_FOLDER    = "1AaOauQiHdwNsmseZdZQnhqZRqxTPnnuY"
 NEW_SERMONS_FILE   = "new_sermons.json"
+UPLOADS_FILE       = "uploaded_sermons.json"     # video id -> service date
 
 
 def get_drive_service():
@@ -50,8 +53,8 @@ def get_drive_service():
     return build("drive", "v3", credentials=creds)
 
 
-def create_gdoc(drive, title, content, folder_id):
-    media = MediaInMemoryUpload(content.encode("utf-8"), mimetype="text/plain")
+def create_gdoc(drive, title, content, folder_id, mimetype="text/plain"):
+    media = MediaInMemoryUpload(content.encode("utf-8"), mimetype=mimetype)
     file = drive.files().create(
         body={
             "name": title,
@@ -64,16 +67,23 @@ def create_gdoc(drive, title, content, folder_id):
     return file["id"]
 
 
-def build_transcript_content(sermon):
-    return "\n".join([
-        sermon["title"],
-        sermon.get("scripture", ""),
-        f"{sermon.get('preacher', 'Peter Frey')} | {sermon['date']}",
-        "",
-        "=" * 60,
-        "",
-        sermon.get("transcript") or "[Transcript not yet available]",
-    ])
+def service_date(sermon):
+    """The Sunday it was preached. YouTube only knows the upload date, so use
+    the uploader's record when this sermon came through upload_sermon.py."""
+    try:
+        with open(UPLOADS_FILE, encoding="utf-8") as f:
+            for u in json.load(f):
+                if u.get("video_id") == sermon.get("id"):
+                    return u["service_date"]
+    except (OSError, ValueError, KeyError):
+        pass
+    return sermon["date"]
+
+
+def build_transcript_content(sermon, date):
+    return transcript_doc_html(sermon["title"], sermon.get("scripture", ""),
+                               sermon.get("preacher", "Peter Frey"), date,
+                               sermon.get("transcript"))
 
 
 def generate_outline(sermon):
@@ -86,7 +96,7 @@ def generate_outline(sermon):
     prompt = f"""Generate a one-page sermon outline for this sermon. Use exactly this format:
 
 {sermon['title'].upper()}
-{sermon.get('scripture', '')} | {sermon.get('preacher', 'Peter Frey')} | {sermon['date']}
+{sermon.get('scripture', '')} | {sermon.get('preacher', 'Peter Frey')} | {service_date(sermon)}
 
 BIG IDEA
 Scripture: "[key verse]" (Reference)
@@ -125,7 +135,7 @@ Sermon transcript:
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
-    return msg.content[0].text
+    return tidy(msg.content[0].text)
 
 
 def main():
@@ -144,15 +154,15 @@ def main():
     drive = get_drive_service()
 
     for s in new_sermons:
-        date  = s["date"]
+        date  = service_date(s)
         title = s["title"]
         doc_title = f"{date} - {title}"
         print(f"\n  {doc_title}")
 
         # Transcript doc
         try:
-            content = build_transcript_content(s)
-            doc_id  = create_gdoc(drive, doc_title, content, TRANSCRIPTS_FOLDER)
+            content = build_transcript_content(s, date)
+            doc_id  = create_gdoc(drive, doc_title, content, TRANSCRIPTS_FOLDER, "text/html")
             print(f"    Transcript: {doc_id}")
         except Exception as e:
             print(f"    Transcript error: {e}")
