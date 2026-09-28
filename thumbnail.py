@@ -92,6 +92,18 @@ def trim_to_content(art, pad=0.04):
     return art.crop(box)
 
 
+def cutout(art):
+    """The lockup alone: the art's background (and its texture) made transparent,
+    so the lettering sits on a photo or new ground without a box around it."""
+    from PIL import ImageChops
+    art = art.convert("RGBA")
+    rgb = art.convert("RGB")
+    diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, _background(rgb))).convert("L")
+    alpha = diff.point(lambda v: 0 if v < 28 else 255 if v > 70 else int((v - 28) * 255 / 42))
+    art.putalpha(ImageChops.multiply(alpha, art.getchannel("A")))
+    return art
+
+
 def _contain(img, w, h):
     s = min(w / img.width, h / img.height)
     return img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
@@ -226,7 +238,7 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
     series = entry.get("series") or ""
     title = (entry.get("title") or "Sunday " + service_date.strftime("%B %-d")).upper()
     scripture = (entry.get("scripture") or "").upper()
-    lockup = trim_to_content(art) if art else None
+    lockup = cutout(trim_to_content(art)) if art else None
 
     def brand_mark(x, y, center=False):
         """No series art yet: the sunburst and the series name in type."""

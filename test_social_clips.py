@@ -210,6 +210,9 @@ check("wallpaper: text is the lockup's off-white", wp and min(wp["text"]) > 220)
 check("wallpaper: accent is the teal mark", wp and wp["accent"][1] > wp["accent"][0] + 30)
 tw, th = T.trim_to_content(wall).size
 check("wallpaper trimmed to its lockup", tw < 900 and th < 250)
+_cut = T.cutout(T.trim_to_content(wall))
+check("lockup background keyed out", _cut.getpixel((2, 2))[3] == 0
+      and max(_cut.getchannel("A").getdata()) == 255)
 check("flat art gives no palette", T.palette_from_art(_Im.new("RGBA", (50, 50), (90, 90, 90, 255))) is None)
 with tempfile.TemporaryDirectory() as tmp:
     entry = {"title": "Are you all in?", "scripture": "Mark 1:14\u201320", "series": series}
