@@ -82,8 +82,12 @@ def plan_path(video, start, dur):
     import cv2
     w, h, fps = _probe(video)
     fps = 30.0
-    cascades = [cv2.CascadeClassifier(cv2.data.haarcascades + n) for n in
-                ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml")]
+    try:
+        cascades = [cv2.CascadeClassifier(cv2.data.haarcascades + n) for n in
+                    ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml")]
+    except AttributeError:          # OpenCV 5 dropped Haar cascades; requirements pin <5
+        print("    ! this OpenCV has no face detector; using a centred crop", flush=True)
+        return None, {"detections": 0, "no_detector": True}
     step = 6                                       # detect 5x a second
     n_frames = int(round(dur * fps))
     obs_t, obs = [], []

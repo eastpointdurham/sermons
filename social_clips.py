@@ -433,6 +433,8 @@ def face_positions(video_path, start, end, samples=12):
         import cv2
     except ImportError:
         return []
+    if not hasattr(cv2, "CascadeClassifier"):
+        return []
     cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     profile = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_profileface.xml")
     cap = cv2.VideoCapture(video_path)

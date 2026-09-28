@@ -7,3 +7,5 @@ anthropic
 faster-whisper
 pillow
 cairosvg
+opencv-python-headless<5
+numpy
