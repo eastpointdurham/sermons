@@ -176,6 +176,8 @@ check("doc has a real heading", "<h1>Are You All In?</h1>" in doc, True)
 check("doc has no markdown marks", "#" not in doc and "=====" not in doc, True)
 check("doc drops the model's own title line", "Sermon Transcript" not in doc, True)
 check("doc paragraphs", doc.count("<p>"), 3)
+mid = TT.transcript_doc_html("t", "", "", "", "One.\n\n# Sermon Transcript: Part Two\n\nTwo.")
+check("chunk titles dropped mid-transcript", "Part Two" not in mid and mid.count("<p>") == 3, True)
 check("doc escapes text", "&lt;b&gt;" in TT.transcript_doc_html("t", "", "", "", "<b>x</b>"), True)
 check("doc byline has the service date", "2026-09-27" in doc, True)
 

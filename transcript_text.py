@@ -35,8 +35,8 @@ def transcript_doc_html(title, scripture, preacher, service_date, transcript):
     """A transcript as a Google Doc: title as a heading, a byline, a divider,
     then the sermon in paragraphs."""
     body = tidy(transcript) or "[Transcript not yet available]"
-    # the model sometimes opens with its own title line ("Sermon Transcript: ...")
-    body = re.sub(r"^(sermon )?transcript\b[^\n]*\n+", "", body, flags=re.I)
+    # the polish step can title each chunk it cleans ("Sermon Transcript: ...")
+    body = re.sub(r"^(sermon )?transcript\b[^\n]*(\n+|$)", "", body, flags=re.I | re.M)
     paras = [p.strip() for p in body.split("\n\n") if p.strip()]
     byline = " · ".join(x for x in (scripture, preacher, service_date) if x)
     e = html.escape

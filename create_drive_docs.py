@@ -138,6 +138,45 @@ Sermon transcript:
     return tidy(msg.content[0].text)
 
 
+def make_docs(drive, s):
+    """File one sermon's transcript and outline docs in Drive."""
+    date  = service_date(s)
+    title = s["title"]
+    doc_title = f"{date} - {title}"
+    print(f"\n  {doc_title}")
+
+    try:
+        content = build_transcript_content(s, date)
+        doc_id  = create_gdoc(drive, doc_title, content, TRANSCRIPTS_FOLDER, "text/html")
+        print(f"    Transcript: {doc_id}")
+    except Exception as e:
+        print(f"    Transcript error: {e}")
+
+    try:
+        outline    = generate_outline(s)
+        outline_id = create_gdoc(drive, f"{doc_title} (Outline)", outline, OUTLINES_FOLDER)
+        print(f"    Outline:    {outline_id}")
+    except Exception as e:
+        print(f"    Outline error: {e}")
+
+
+def redo(video_id):
+    """Rebuild one sermon's docs from its YouTube captions (e.g. after the doc
+    format changes). Transcript text goes only to Drive, never to the repo."""
+    os.environ.setdefault("YOUTUBE_API_KEY", "unused")        # build_site checks at import
+    import build_site as B
+    oauth = B.build_youtube_oauth()
+    _, videos = B.get_channel_videos(None, oauth)
+    s = next((v for v in videos if v["id"] == video_id), None)
+    if not s:
+        raise SystemExit(f"{video_id} is not a sermon on the channel")
+    raw = B.get_transcript(video_id, oauth)
+    if not raw:
+        raise SystemExit(f"No captions for {video_id} yet")
+    s["transcript"] = B.polish_transcript(raw)
+    make_docs(get_drive_service(), s)
+
+
 def main():
     if not os.path.exists(NEW_SERMONS_FILE):
         print("No new_sermons.json - nothing to process.")
@@ -154,29 +193,13 @@ def main():
     drive = get_drive_service()
 
     for s in new_sermons:
-        date  = service_date(s)
-        title = s["title"]
-        doc_title = f"{date} - {title}"
-        print(f"\n  {doc_title}")
-
-        # Transcript doc
-        try:
-            content = build_transcript_content(s, date)
-            doc_id  = create_gdoc(drive, doc_title, content, TRANSCRIPTS_FOLDER, "text/html")
-            print(f"    Transcript: {doc_id}")
-        except Exception as e:
-            print(f"    Transcript error: {e}")
-
-        # Outline doc
-        try:
-            outline    = generate_outline(s)
-            outline_id = create_gdoc(drive, f"{doc_title} (Outline)", outline, OUTLINES_FOLDER)
-            print(f"    Outline:    {outline_id}")
-        except Exception as e:
-            print(f"    Outline error: {e}")
+        make_docs(drive, s)
 
     print("\nDone.")
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == "--redo":
+        redo(sys.argv[2])
+    else:
+        main()

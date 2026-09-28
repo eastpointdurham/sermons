@@ -1,0 +1,36 @@
+name: Redo Sermon Docs
+
+# Rebuild one sermon's transcript and outline docs in Drive from its YouTube
+# captions, e.g. after the doc format changes. The old docs stay where they are
+# (trash them by hand). Nothing is committed: transcript text goes only to Drive.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "YouTube video id (the part after watch?v= or /video/)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  redo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Rebuild docs
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_YOUTUBE_REFRESH_TOKEN: ${{ secrets.GOOGLE_YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CHANNEL_ID: UCu5frCUoNL0rOGCAClqHBFA
+        run: python create_drive_docs.py --redo "${{ github.event.inputs.video_id }}"
