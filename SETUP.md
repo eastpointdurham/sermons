@@ -70,6 +70,10 @@ Drive › Social Drafts › `<date> <title>`:
   `SOCIAL_FONTS_FOLDER_ID` variable elsewhere if the folder moves.
 - Looks: `"style"` in `social/brand.json` is `both` (every reel rendered as
   "(editorial)" and "(bold)"; post whichever fits), or `editorial` / `bold` for one.
+  When picking: word-highlighted captions like (bold)'s keep muted viewers watching
+  longer than a static caption line, so default to (bold) for Tuesday's and Thursday's
+  clips. Reach for the calmer (editorial) look on a quiet or reflective moment, or for
+  Saturday's invite post.
 - Camera: `reframe.py` works like a camera operator. It follows the speaker's face,
   holds still for small moves, glides when he walks, and zooms in only as far as the
   source allows (`SOCIAL_MAX_UPSCALE`, default 2.1x for 1080p recordings). Run the

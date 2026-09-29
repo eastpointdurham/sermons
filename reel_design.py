@@ -305,7 +305,7 @@ def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
 # captions
 # --------------------------------------------------------------------------
 
-EDITORIAL_CAP_SIZE = 50
+EDITORIAL_CAP_SIZE = 56          # legible at a glance on mute; still calmer than (bold)
 
 
 def editorial_caption_frame(words, brand, fonts_dir, cap_y):
