@@ -44,8 +44,8 @@ carries the post, the copy frames it.
 - Then 1 to 2 short paragraphs (2 to 3 sentences each) that open up the idea for someone
   who wasn't in the room. Warm, reflective, concrete. No hype, no exclamation marks.
 - Then the source line: From "<Series>: <Message title>" (use the sermon title given).
-- Last line: eastpointdurham.com  (on Friday's invite post: "Gather with us / Sundays at
-  10am, Oak Grove Elementary").
+- Last line: eastpointdurham.com. When a clip works best as an invitation, end instead
+  with "Gather with us / Sundays at 10am, Oak Grove Elementary".
 - No hashtag walls and no emoji. At most two local tags on Instagram (#Durham #EastDurham),
   on their own last line; none on Facebook.
 - Facebook: same copy; may add one warm sentence of invitation.
@@ -71,10 +71,10 @@ Skip: announcements, offering, welcome, inside jokes, anything naming a congrega
 laughter with no payoff, the scripture reading on its own, prayer at the end, and
 moments that depend on slides or props people can't see.
 
-Mix across the week: make each clip a different kind (gospel-clear, practical or
-comforting, story, or an answer to a question skeptics ask).
+Make each clip a different kind (gospel-clear, practical or comforting, story, or an
+answer to a question skeptics ask), so the week's options give the team real choices.
 
-## Weekly rhythm
-Two to three teaching reels a week plus one Sunday photo post (people, not the stage).
-Tue: strongest clip. Thu: next best. Sat (optional third): the clip that works best as
-an invite; its caption ends "Gather with us / Sundays at 10am, Oak Grove Elementary". Keep clips under 90 seconds (Facebook Reels limit).
+## Using the reels
+Each week's reels are options, not a schedule: the team posts whichever fit, whenever
+suits. Every reel comes with its own ready-to-use copy for Instagram, Facebook and
+YouTube Shorts. Keep clips under 90 seconds (Facebook Reels limit).

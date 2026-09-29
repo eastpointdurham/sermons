@@ -362,7 +362,6 @@ Return ONLY a JSON object, no prose, in this shape:
       "why": "one sentence: why this works for someone who has never been to church",
       "scores": {{"hook": 1-5, "standalone": 1-5, "gospel": 1-5, "emotional_truth": 1-5, "shareability": 1-5}},
       "kind": "gospel | practical | story | skeptic-question",
-      "post_day": "Tue | Thu | Sat",
       "instagram_caption": "per the strategy caption rules: question/statement line, 1-2 short paragraphs, From \\"<series>: <title>\\" line, eastpointdurham.com, at most two local hashtags",
       "facebook_caption": "same copy, no hashtags, may add one warm sentence of invitation",
       "youtube_title": "under 70 characters, a searchable question or phrase, end with #shorts",
@@ -370,7 +369,7 @@ Return ONLY a JSON object, no prose, in this shape:
     }}
   ]
 }}
-Order clips by post_day. Captions must follow the voice and caption rules. Never \
+Order clips strongest first. Captions must follow the voice and caption rules. Never \
 put words in the preacher's mouth: hooks and captions describe what he actually said."""
 
 
@@ -588,28 +587,25 @@ def render_end_card(brand, out_path, workdir, style="editorial"):
 # content plan
 # --------------------------------------------------------------------------
 
-DAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-
 def plan_html(plan, clips, meta, service_date):
     def esc(s):
         return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
     rows = []
     rows.append(f"<h1>Social plan: {esc(meta.get('title') or 'Sermon')} ({service_date:%b %-d, %Y})</h1>")
     rows.append(f"<p><b>Big idea:</b> {esc(plan.get('sermon_big_idea', ''))}</p>")
-    rows.append("<p>Drafts only. Review each reel, then schedule the ones you approve in "
-                "Meta Business Suite (Instagram + Facebook) and YouTube Studio (Shorts). "
-                "Each reel comes in two looks: (editorial) calm captions, and (bold) hook banner "
-                "and brush stroke. Post whichever fits the moment; delete the other.</p>")
-    rows.append("<table border='1' cellpadding='6'><tr><th>Day</th><th>File</th><th>Hook</th>"
+    rows.append("<p>Drafts only, and options rather than a schedule: post whichever reels "
+                "you like, whenever suits, with the copy given for each. Each reel comes in two "
+                "looks: (editorial) calm captions, and (bold) hook banner and brush stroke. Post "
+                "whichever fits the moment; delete the other.</p>")
+    rows.append("<table border='1' cellpadding='6'><tr><th>Option</th><th>File</th><th>Hook</th>"
                 "<th>Length</th><th>Kind</th><th>Why</th></tr>")
     for c in clips:
-        rows.append(f"<tr><td>{esc(c.get('post_day'))}</td><td>{esc(' / '.join(c.get('files', {}).values()) or c['file'])}</td>"
+        rows.append(f"<tr><td>{c.get('n', '')}</td><td>{esc(' / '.join(c.get('files', {}).values()) or c['file'])}</td>"
                     f"<td>{esc(c['hook'])}</td><td>{c['end'] - c['start']:.0f}s</td>"
                     f"<td>{esc(c.get('kind'))}</td><td>{esc(c.get('why'))}</td></tr>")
     rows.append("</table>")
     for c in clips:
-        rows.append(f"<h2>{esc(c.get('post_day'))}: {esc(c['hook'])}</h2>")
+        rows.append(f"<h2>Option {c.get('n', '')}: {esc(c['hook'])}</h2>")
         rows.append(f"<p><i>{esc(' / '.join(c.get('files', {}).values()) or c['file'])} · {fmt_t(c['start'])}–{fmt_t(c['end'])} in the sermon"
                     f"{' · ' + esc(c['scripture']) if c.get('scripture') else ''}</i></p>")
         rows.append(f"<p><b>Instagram</b><br>{esc(c.get('instagram_caption'))}</p>")
@@ -657,8 +653,6 @@ def process(drive, sermon, brand, state):
         else:
             plan = select_moments(sentences, meta, service_date)
         clips = resolve_clips(plan, sentences, words)
-        clips.sort(key=lambda c: DAY_ORDER.index(c.get("post_day", "Sat")[:3].title())
-                   if c.get("post_day", "")[:3].title() in DAY_ORDER else 9)
         log(f"  {len(clips)} clips selected")
 
         out_dir = os.path.join(tmp, "out")

@@ -178,6 +178,19 @@ with tempfile.TemporaryDirectory() as _d:
 check("meta title is the sermon title", _m["title"] == "Are you all in?" and _m["scripture"] == "Mark 1:14–20"
       and _m["preacher"] == "Peter Frey")
 
+# the weekly plan gives options with copy, not a posting schedule
+_plan = sc.plan_html({"sermon_big_idea": "Jesus is king"},
+                     [{"n": 1, "hook": "Expert or practitioner?", "start": 10.0, "end": 60.0,
+                       "file": "a.mp4", "files": {}, "kind": "gospel", "why": "w", "text": "t",
+                       "instagram_caption": "IG copy", "facebook_caption": "FB copy",
+                       "youtube_title": "YT title #shorts", "youtube_description": "YT desc"}],
+                     {"title": "Are you all in?"}, __import__("datetime").date(2026, 9, 27))
+check("plan labels reels as options", "Option 1: Expert or practitioner?" in _plan)
+check("plan carries each reel's copy", all(x in _plan for x in ("IG copy", "FB copy", "YT title #shorts")))
+check("plan has no posting days", not any(d in _plan for d in (">Tue<", ">Thu<", ">Sat<", "Day</th>")))
+check("clip prompt asks for no post day", "post_day" not in sc.PROMPT)
+check("strategy has no weekly posting rhythm", "Weekly rhythm" not in open(sc.STRATEGY_FILE).read())
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date

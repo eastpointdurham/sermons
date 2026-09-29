@@ -52,7 +52,8 @@ Drive › Social Drafts › `<date> <title>`:
   scrims, sage sunburst, Oakes Grotesk hook with a sage brush underline, live captions
   with the spoken word on a sage highlight, ink end card). Encoded high (CRF 16) so
   Instagram's recompression has the most to work with.
-- `Social plan <date>`: captions for Instagram, Facebook and YouTube Shorts, post days.
+- `Social plan <date>`: each reel as an option, with ready-to-use copy for Instagram,
+  Facebook and YouTube Shorts. No posting schedule: post whichever fit, whenever suits.
 - `Final Cut/<date> reels.fcpxml`: one vertical project per reel, cut from the original
   recording at full quality, with the crop, hook, scripture and caption titles and
   sentence markers. Import it (File › Import › XML), point Final Cut at the sermon file
