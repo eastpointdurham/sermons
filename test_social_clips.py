@@ -190,6 +190,9 @@ check("plan carries each reel's copy", all(x in _plan for x in ("IG copy", "FB c
 check("plan has no posting days", not any(d in _plan for d in (">Tue<", ">Thu<", ">Sat<", "Day</th>")))
 check("clip prompt asks for no post day", "post_day" not in sc.PROMPT)
 check("strategy has no weekly posting rhythm", "Weekly rhythm" not in open(sc.STRATEGY_FILE).read())
+_strat = open(sc.STRATEGY_FILE).read()
+check("each option gets its own next step", "a different one on each reel option" in _strat)
+check("hashtags stay sparing", "At most two local tags" in _strat and "no emoji" in _strat.lower())
 
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T

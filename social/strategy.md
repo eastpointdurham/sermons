@@ -43,9 +43,12 @@ carries the post, the copy frames it.
   characters ("Who is your rabbi?", "Prayer isn't a technique. It's a relationship.").
 - Then 1 to 2 short paragraphs (2 to 3 sentences each) that open up the idea for someone
   who wasn't in the room. Warm, reflective, concrete. No hype, no exclamation marks.
-- Then the source line: From "<Series>: <Message title>" (use the sermon title given).
-- Last line: eastpointdurham.com. When a clip works best as an invitation, end instead
-  with "Gather with us / Sundays at 10am, Oak Grove Elementary".
+- Then the source line: From "<Series>: <Message title>" (use the sermon title given;
+  a standalone sermon has no series).
+- Then one clear next step, a different one on each reel option: watch the full message
+  (link in bio), come Sunday ("Gather with us / Sundays at 10am, Oak Grove Elementary"),
+  send it to a friend who needs it, or save it for later.
+- Last line: eastpointdurham.com.
 - No hashtag walls and no emoji. At most two local tags on Instagram (#Durham #EastDurham),
   on their own last line; none on Facebook.
 - Facebook: same copy; may add one warm sentence of invitation.

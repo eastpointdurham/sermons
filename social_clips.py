@@ -362,7 +362,7 @@ Return ONLY a JSON object, no prose, in this shape:
       "why": "one sentence: why this works for someone who has never been to church",
       "scores": {{"hook": 1-5, "standalone": 1-5, "gospel": 1-5, "emotional_truth": 1-5, "shareability": 1-5}},
       "kind": "gospel | practical | story | skeptic-question",
-      "instagram_caption": "per the strategy caption rules: question/statement line, 1-2 short paragraphs, From \\"<series>: <title>\\" line, eastpointdurham.com, at most two local hashtags",
+      "instagram_caption": "per the strategy caption rules: question/statement line, 1-2 short paragraphs, From \\"<series>: <title>\\" line, one next step (different on each clip), eastpointdurham.com, at most two local hashtags",
       "facebook_caption": "same copy, no hashtags, may add one warm sentence of invitation",
       "youtube_title": "under 70 characters, a searchable question or phrase, end with #shorts",
       "youtube_description": "2 sentences + 'Full message: {youtube_link}'"
