@@ -437,9 +437,15 @@ def upload_to_youtube(youtube, path, title, description, tags):
 
 
 def extract_audio(video_path, mp3_path):
+    """Podcast MP3: hiss and rumble cleaned (audio.py), then podcast loudness
+    (-16 LUFS, -1.5 dBTP), mono 96 kbps."""
+    import audio
+    clean, info = audio.filters(video_path)
+    print(f"  audio: {info}", flush=True)
+    chain = ",".join(f for f in (clean, "loudnorm=I=-16:TP=-1.5:LRA=11", "aresample=44100") if f)
     subprocess.run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-i", video_path, "-vn", "-ac", "1", "-b:a", "96k",
+        "-i", video_path, "-vn", "-af", chain, "-ac", "1", "-b:a", "96k",
         "-codec:a", "libmp3lame", mp3_path,
     ], check=True)
 

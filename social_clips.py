@@ -537,6 +537,10 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
         clip["_grade"], clip["grade"] = grade.grade_filter(src, src_ss, dur, workdir,
                                                            f"clip{clip['n']}_grade")
         log(f"    colour: {clip['grade']}")
+    if "_audio" not in clip:                        # hiss out before the loudness step
+        import audio
+        clip["_audio"], clip["audio"] = audio.filters(video_path, clip["start"], dur)
+        log(f"    audio: {clip['audio']}")
     if clip["_grade"]:                              # before the pad: the ink frame stays ink
         base = f"{clip['_grade']},{base}"
 
@@ -559,7 +563,8 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
         "-f", "concat", "-safe", "0", "-i", captions,
         "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path,
         "-filter_complex", graph, "-map", "[out]", "-map", "3:a:0",
-        "-af", "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000",
+        "-af", ",".join(f for f in (clip["_audio"], "loudnorm=I=-14:TP=-1.5:LRA=11",
+                                     "aresample=48000") if f),
         "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
         "-tune", "film", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-shortest", main],
         check=True)

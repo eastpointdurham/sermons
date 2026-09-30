@@ -285,6 +285,36 @@ try:
 finally:
     sc.list_folder, sc.download = _rl, _rd
 
+# audio: hiss and rumble out before the loudness step ---------------------------------
+import audio as AU
+_hissy = AU.clean_filter({"floor": -62.0, "speech": -19.0})
+check("hiss is denoised", "afftdn=" in _hissy and "nf=-62" in _hissy and "highpass=f=75" in _hissy)
+check("pauses get a gentle gate", "agate=" in _hissy and "range=0.25" in _hissy)
+_thr = float(_hissy.split("threshold=")[1].split(":")[0])
+check("gate sits between hiss and voice", 10 ** (-62 / 20) < _thr < 10 ** (-19 / 20))
+check("clean audio only loses rumble", AU.clean_filter({"floor": -95.0, "speech": -20.0}) == "highpass=f=75")
+check("no voice above the noise: no denoise", "afftdn" not in AU.clean_filter({"floor": -40.0, "speech": -35.0}))
+_nr = lambda f, sp: int(AU.clean_filter({"floor": f, "speech": sp}).split("nr=")[1].split(":")[0])
+check("noisier recording, firmer reduction", _nr(-45, -20) >= _nr(-70, -20))
+check("reduction stays in range", all(AU.MIN_NR <= _nr(f, -20) <= AU.MAX_NR for f in (-75, -60, -45, -35)))
+check("unmeasurable audio still loses rumble", AU.clean_filter(None) == "highpass=f=75")
+with tempfile.TemporaryDirectory() as _t:
+    _w = os.path.join(_t, "v.wav")          # 2 s of "voice" (a tone) then 2 s of hiss, twice
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anoisesrc=a=0.003:d=8:r=16000",
+                    "-f", "lavfi", "-i", "sine=f=220:d=8:r=16000",
+                    "-filter_complex", "[1]volume='if(lt(mod(t,4),2),0.3,0)':eval=frame[s];[0][s]amix=2:normalize=0",
+                    _w], check=True)
+    _lv = AU.measure(_w)
+    check("measure finds the hiss floor", -65 < _lv["floor"] < -45)
+    check("measure finds the voice", _lv["speech"] > _lv["floor"] + 20)
+    _chain = AU.clean_filter(_lv) + ",loudnorm=I=-14:TP=-1.5:LRA=11"
+    _ff = subprocess.run(["ffmpeg", "-v", "error", "-i", _w, "-af", _chain, "-f", "null", "-"],
+                         capture_output=True, text=True)
+    check("ffmpeg accepts the audio chain", _ff.returncode == 0)
+os.environ["AUDIO_CLEAN"] = "off"
+check("audio cleaning can be switched off", AU.filters("none.wav")[0] == "")
+del os.environ["AUDIO_CLEAN"]
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date

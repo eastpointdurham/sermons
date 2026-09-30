@@ -80,6 +80,11 @@ Drive › Social Drafts › `<date> <title>`:
   the face (hue only, so skin tones are never lightened or darkened), cleaner blacks,
   a capped exposure lift, a soft filmic curve and skin-protected vibrance. Set the
   `SOCIAL_GRADE` environment variable to `off` to skip it.
+- Audio: `audio.py` measures each clip's noise floor, then removes rumble (75 Hz
+  high-pass) and hiss (an FFT denoiser set from that floor) and softens the pauses,
+  before the loudness step, so normalising no longer swells the hiss between
+  sentences. The podcast MP3 gets the same clean-up plus podcast loudness (-16 LUFS).
+  Set `AUDIO_CLEAN` to `off` to skip it. The YouTube upload is the original file.
 - Re-rendering a week after a design change: Actions › **Make Social Reels** › Run
   workflow with the sermon's Drive file id and `reuse_plan = true`. The same clips are
   rebuilt and replace the files in the same folder (Drive keeps the old versions).
