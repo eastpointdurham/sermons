@@ -2,6 +2,7 @@
 """Offline tests for social_clips.py (no Drive, no model, no ffmpeg)."""
 import json
 import os
+import subprocess
 import sys
 from datetime import date, timedelta
 from unittest import mock
@@ -193,6 +194,70 @@ check("strategy has no weekly posting rhythm", "Weekly rhythm" not in open(sc.ST
 _strat = open(sc.STRATEGY_FILE).read()
 check("each option gets its own next step", "a different one on each reel option" in _strat)
 check("hashtags stay sparing", "At most two local tags" in _strat and "no emoji" in _strat.lower())
+
+# colour: measured white balance, levels, and one LUT per clip ----------------------
+import math as _math
+import numpy as _np
+import grade as G
+for _c in ((0.8, 0.6, 0.5), (0.3, 0.2, 0.15), (0.5, 0.5, 0.5)):
+    _back = G.lab_to_rgb(G.rgb_to_lab(_c))
+    check("lab round trip", all(abs(a - b) < 1e-3 for a, b in zip(_c, _back)))
+
+def _lab_of(L, C, h):
+    return G.lab_to_rgb((L, C * _math.cos(_math.radians(h)), C * _math.sin(_math.radians(h))))
+
+def _hue_L(rgb):
+    L, a, b = G.rgb_to_lab(rgb)
+    return _math.degrees(_math.atan2(b, a)), L
+
+def _apply(rgb, g):
+    return tuple(float(v) for v in G.to_display(G.to_linear(rgb) * _np.array(g)))
+
+check("face in the skin band: no correction", G.skin_gains(_lab_of(62, 16, 55)) is None)
+for _label, _h in (("green cast", 95), ("magenta cast", 20), ("blue-ish light", 5)):
+    _face = _lab_of(58, 18, _h)
+    _g = G.skin_gains(_face)
+    check(f"{_label}: gains given", _g is not None)
+    _h2, _L2 = _hue_L(_apply(_face, _g))
+    check(f"{_label}: hue moves toward skin", abs(_h2 - 55) < abs(_h - 55))
+    check(f"{_label}: brightness kept", abs(_L2 - 58) < 3)
+    check(f"{_label}: gains capped", all(0.9 - 1e-9 <= k <= 1.1 + 1e-9 for k in _g))
+for _L, _C in ((30, 14), (50, 20), (75, 12)):
+    check(f"skin tone L{_L} C{_C} left alone", G.skin_gains(_lab_of(_L, _C, 52)) is None)
+check("grey face says nothing", G.skin_gains((0.5, 0.5, 0.5)) is None)
+_ng = G.neutral_gains((0.62, 0.60, 0.70))                 # a blue-ish white wall
+check("neutral gains cut the blue cast", _ng and _ng[2] < 1 and _ng[2] == min(_ng))
+check("a pink wall does not overrule a good face",
+      G.choose_wb(_lab_of(62, 16, 55), (0.75, 0.55, 0.60))[1] == "face"
+      or G.choose_wb(_lab_of(62, 16, 55), (0.75, 0.55, 0.60))[0] is None)
+check("neutrals used when they agree with the face",
+      G.choose_wb(_lab_of(60, 15, 40), (0.60, 0.60, 0.66))[1] == "neutral")
+_b, _w, _gm = G.levels({"p_lo": 0.08, "p_med": 0.30, "p_hi": 0.80, "face": None})
+check("flat footage gets its range back", _b > 0.05 and _w <= 0.85 and 0.7 <= _gm <= 1.42)
+_b2, _w2, _gm2 = G.levels({"p_lo": 0.0, "p_med": 0.42, "p_hi": 0.99, "face": None})
+check("well-exposed footage barely moves", _b2 == 0 and _w2 == 1.0 and abs(_gm2 - 1) < 0.05)
+_b3, _w3, _gm3 = G.levels({"p_lo": 0.02, "p_med": 0.2, "p_hi": 0.9, "face": (0.93, 0.8, 0.75)})
+check("a bright face is kept off clipping",
+      ((float(G.LUMA @ _np.array((0.93, 0.8, 0.75))) - _b3) / (_w3 - _b3)) ** _gm3 <= 0.881)
+_lut = G.build_lut(None, 0.0, 1.0, 1.0, size=17)
+_grey = _lut[:, :, :][_np.arange(17), _np.arange(17), _np.arange(17)]
+check("greys stay neutral", float(_np.abs(_grey - _grey.mean(axis=1, keepdims=True)).max()) < 0.02)
+check("tone curve keeps order", bool(_np.all(_np.diff(_grey.mean(axis=1)) > 0)))
+_i = [int(round(v * 16)) for v in _lab_of(60, 18, 55)]
+_skin_in = tuple(v / 16 for v in _i)                    # the grid point the LUT holds
+_skin_out = tuple(float(v) for v in _lut[_i[2], _i[1], _i[0]])
+check("skin hue survives the look", abs(_hue_L(_skin_out)[0] - _hue_L(_skin_in)[0]) < 4)
+with tempfile.TemporaryDirectory() as _tmp:
+    _cube = G.write_cube(G.build_lut((1.04, 0.99, 0.95), 0.03, 0.95, 0.95), os.path.join(_tmp, "g.cube"))
+    _lines = open(_cube).read().splitlines()
+    check("cube has every point", len(_lines) == 2 + 33 ** 3)
+    _ff = subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x240:d=0.2",
+                          "-vf", f"lut3d=file='{_cube}':interp=tetrahedral", "-f", "null", "-"],
+                         capture_output=True, text=True)
+    check("ffmpeg applies the LUT", _ff.returncode == 0)
+os.environ["SOCIAL_GRADE"] = "off"
+check("grading can be switched off", G.grade_filter("none.mp4", 0, 1, "/tmp")[0] == "")
+del os.environ["SOCIAL_GRADE"]
 
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T

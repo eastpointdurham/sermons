@@ -532,6 +532,13 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
         base = (f"scale={W}:-2:flags=lanczos,"
                 f"pad={W}:{H}:0:(oh-ih)/2+150:0x{ink}")
     clip["layout"] = layout
+    if "_grade" not in clip:                        # shared by both looks
+        import grade
+        clip["_grade"], clip["grade"] = grade.grade_filter(src, src_ss, dur, workdir,
+                                                           f"clip{clip['n']}_grade")
+        log(f"    colour: {clip['grade']}")
+    if clip["_grade"]:                              # before the pad: the ink frame stays ink
+        base = f"{clip['_grade']},{base}"
 
     overlay = rd.make_overlay(clip, brand, layout, FONTS_DIR,
                               os.path.join(workdir, f"clip{clip['n']}_{style}_overlay.png"), style)
@@ -685,7 +692,8 @@ def process(drive, sermon, brand, state):
                 clips, brand, brand["font_family"], caption_chunks,
                 f"Reels {stamp} {meta.get('title') or ''}".strip()))
 
-        public = [{k: v for k, v in c.items() if k not in ("words",)} for c in clips]
+        public = [{k: v for k, v in c.items() if k != "words" and not k.startswith("_")}
+                  for c in clips]
         plan_json = {"service_date": stamp, "title": meta.get("title"),
                      "youtube_id": meta.get("youtube_id"),
                      "sermon_big_idea": plan.get("sermon_big_idea"), "clips": public,
