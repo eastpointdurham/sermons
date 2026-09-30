@@ -627,6 +627,34 @@ def plan_html(plan, clips, meta, service_date):
 # main
 # --------------------------------------------------------------------------
 
+def reuse_plan(drive, sermon, state, workdir):
+    """(plan, words, folder id) from this sermon's latest drafts folder that still
+    holds plan.json and transcript_words.json, so a re-render (e.g. after a
+    design change) keeps the same clips and replaces the same files. None if
+    there is nothing to reuse."""
+    for rec in reversed(state):
+        if rec.get("drive_file_id") != sermon["id"] or not rec.get("drafts_folder_id"):
+            continue
+        try:
+            files = {f["name"]: f for f in list_folder(drive, rec["drafts_folder_id"])}
+        except Exception:
+            continue                                    # folder deleted
+        if "plan.json" in files and "transcript_words.json" in files:
+            paths = {}
+            for name in ("plan.json", "transcript_words.json"):
+                paths[name] = os.path.join(workdir, "reuse_" + name)
+                download(drive, files[name]["id"], paths[name])
+            plan = json.load(open(paths["plan.json"]))
+            words = json.load(open(paths["transcript_words.json"]))
+            for c in plan.get("clips", []):             # render fresh; keep the choice
+                for k in ("start", "end", "files", "file", "drive_id", "drive_ids", "reframe",
+                          "grade", "crop_center", "text", "sentence_starts"):
+                    c.pop(k, None)
+            return plan, words, rec["drafts_folder_id"]
+    log("  ! nothing to reuse for this sermon; choosing clips afresh")
+    return None
+
+
 def process(drive, sermon, brand, state):
     service_date = sermon["service_date"]
     meta = sermon_meta(service_date)
@@ -649,13 +677,20 @@ def process(drive, sermon, brand, state):
             log("  downloading…")
             download(drive, sermon["id"], video)
 
-        if os.environ.get("SOCIAL_WORDS_JSON"):         # testing: skip transcription
+        reused = (reuse_plan(drive, sermon, state, tmp)
+                  if drive is not None and os.environ.get("SOCIAL_REUSE_PLAN") == "1" else None)
+        if reused:                                      # same clips, re-rendered
+            plan, words, reuse_folder = reused
+            log("  re-rendering last run's clips (plan and word timings from Drive)")
+        elif os.environ.get("SOCIAL_WORDS_JSON"):       # testing: skip transcription
             words = json.load(open(os.environ["SOCIAL_WORDS_JSON"]))
         else:
             words = transcribe(video, tmp)
         sentences = sentences_from_words(words)
 
-        if os.environ.get("SOCIAL_PLAN_JSON"):          # testing: skip the model call
+        if reused:
+            pass
+        elif os.environ.get("SOCIAL_PLAN_JSON"):        # testing: skip the model call
             plan = json.load(open(os.environ["SOCIAL_PLAN_JSON"]))
         else:
             plan = select_moments(sentences, meta, service_date)
@@ -727,7 +762,7 @@ def process(drive, sermon, brand, state):
                 fields="parents", supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)["parents"][0]
             parent = ensure_folder(drive, "Social Drafts", sermons_parent)
         folder_name = f"{stamp} {meta.get('title') or 'Sermon'}"[:120]
-        folder = ensure_folder(drive, folder_name, parent)
+        folder = reused[2] if reused else ensure_folder(drive, folder_name, parent)
         for c in clips:
             c["drive_ids"] = {}
             for style, name in c["files"].items():

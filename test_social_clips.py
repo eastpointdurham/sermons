@@ -259,6 +259,32 @@ os.environ["SOCIAL_GRADE"] = "off"
 check("grading can be switched off", G.grade_filter("none.mp4", 0, 1, "/tmp")[0] == "")
 del os.environ["SOCIAL_GRADE"]
 
+# re-rendering last run's clips: plan + word timings come back from the drafts folder
+_drive_files = {"old": None,                       # a deleted folder
+                "new": [{"id": "pj", "name": "plan.json"}, {"id": "tw", "name": "transcript_words.json"}]}
+def _fake_list(drive, fid):
+    if _drive_files.get(fid) is None:
+        raise RuntimeError("not found")
+    return _drive_files[fid]
+def _fake_dl(drive, fid, dest):
+    json.dump({"pj": {"clips": [{"start_sentence": 2, "end_sentence": 5, "hook": "h", "files": {"x": "y"},
+                                 "start": 1.0, "reframe": {}}]},
+               "tw": [{"w": "Hi.", "s": 0.0, "e": 0.4}]}[fid], open(dest, "w"))
+_rl, _rd = sc.list_folder, sc.download
+sc.list_folder, sc.download = _fake_list, _fake_dl
+try:
+    with tempfile.TemporaryDirectory() as _t:
+        _st = [{"drive_file_id": "S", "drafts_folder_id": "new"}, {"drive_file_id": "S", "drafts_folder_id": "old"}]
+        _r = sc.reuse_plan(None, {"id": "S"}, _st, _t)
+        check("reuse finds the live folder past a deleted one", _r is not None and _r[2] == "new")
+        check("reused clip keeps its sentences", _r[0]["clips"][0]["start_sentence"] == 2
+              and _r[0]["clips"][0]["hook"] == "h")
+        check("reused clip renders fresh", "files" not in _r[0]["clips"][0] and "start" not in _r[0]["clips"][0])
+        check("reused word timings", _r[1][0]["w"] == "Hi.")
+        check("nothing to reuse for another sermon", sc.reuse_plan(None, {"id": "T"}, _st, _t) is None)
+finally:
+    sc.list_folder, sc.download = _rl, _rd
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date

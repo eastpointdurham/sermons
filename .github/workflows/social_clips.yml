@@ -21,6 +21,10 @@ on:
         description: "fill (speaker cropped) or framed (full shot in a frame)"
         required: false
         default: "fill"
+      reuse_plan:
+        description: "Re-render the same clips into the same folder (true/false), e.g. after a design change"
+        required: false
+        default: "false"
 
 permissions:
   contents: write        # to commit social_clips.json
@@ -73,6 +77,7 @@ jobs:
           SOCIAL_DRAFTS_FOLDER_ID: ${{ vars.SOCIAL_DRAFTS_FOLDER_ID }}
           SOCIAL_ONLY_FILE_ID: ${{ github.event.inputs.drive_file_id }}
           SOCIAL_LAYOUT: ${{ github.event.inputs.layout || 'fill' }}
+          SOCIAL_REUSE_PLAN: ${{ github.event.inputs.reuse_plan == 'true' && '1' || '0' }}
           WHISPER_MODEL: small.en
         run: python social_clips.py
 

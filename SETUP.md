@@ -75,6 +75,14 @@ Drive › Social Drafts › `<date> <title>`:
   holds still for small moves, glides when he walks, and zooms in only as far as the
   source allows (`SOCIAL_MAX_UPSCALE`, default 2.1x for 1080p recordings). Run the
   workflow with `layout = framed` to show the full wide shot instead.
+- Colour: `grade.py` measures each clip once (the speaker's face, neutral surfaces,
+  the brightness spread) and applies one LUT: white balance anchored on neutrals and
+  the face (hue only, so skin tones are never lightened or darkened), cleaner blacks,
+  a capped exposure lift, a soft filmic curve and skin-protected vibrance. Set the
+  `SOCIAL_GRADE` environment variable to `off` to skip it.
+- Re-rendering a week after a design change: Actions › **Make Social Reels** › Run
+  workflow with the sermon's Drive file id and `reuse_plan = true`. The same clips are
+  rebuilt and replace the files in the same folder (Drive keeps the old versions).
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
 
 ## Thumbnails
