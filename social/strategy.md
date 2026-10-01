@@ -35,6 +35,9 @@ loves Durham. Local words where true: Durham, East Durham, the Triangle, Oak Gro
 - End on what Jesus does, not on what you should do better.
 - Curious hooks, never clickbait: "The judge in this story is the opposite of God", not
   "You WON'T BELIEVE what Jesus said".
+- Most people watch with the sound off. The on-screen hook banner should carry the same
+  curiosity as the spoken opening, not just label the topic — someone scrolling on mute
+  should still feel the hook, not only someone listening.
 
 ## Caption rules (post copy)
 Editorial and unhurried, in the spirit of Bridgetown Church's Instagram: the teaching

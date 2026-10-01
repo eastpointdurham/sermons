@@ -108,6 +108,12 @@ with tempfile.TemporaryDirectory() as tmp:
     check("captions cover the clip", abs(sum(durs) - 10.5) < 0.6)
     frames = [l for l in body if l.startswith("file") and "blank" not in l]
     check("one caption frame per word", len(frames) == 9)
+    # (editorial) captions stay legible for muted viewers: big enough at a glance,
+    # but still calmer (smaller) than the (bold) look's word-highlight captions.
+    check("editorial caption size is legible but calmer than bold",
+          rd.CAP_SIZE > rd.EDITORIAL_CAP_SIZE >= 54)
+    ed_frame = rd.editorial_caption_frame(["Hope", "is", "here"], brand, fonts, 1290)
+    check("editorial caption frame draws something", ed_frame.getbbox() is not None)
     card = rd.make_end_card(brand, fonts, os.path.join(tmp, "e.png"))
     check("end card ink background", Image.open(card).getpixel((20, 20)) == (26, 26, 26))
     b = rd.brush_stroke(600, 12, brand["sage"], seed=1)
