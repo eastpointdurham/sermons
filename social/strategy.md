@@ -69,6 +69,9 @@ A good clip:
   unexplained names.
 - Lands on Jesus, grace, or hope, not on a to-do list.
 - Starts and ends on a full sentence, never mid-thought.
+- Ends on its strongest line, not a softer wind-down sentence: short-form platforms now
+  weigh full watch-time and rewatches as heavily as the opening hook, so the last few
+  seconds have to earn attention too, not just the first three.
 
 Score each candidate 1 to 5 on: hook, standalone, gospel clarity, emotional truth,
 shareability. Only keep clips that average 3.5 or better.
@@ -82,5 +85,7 @@ answer to a question skeptics ask), so the week's options give the team real cho
 
 ## Using the reels
 Each week's reels are options, not a schedule: the team posts whichever fit, whenever
-suits. Every reel comes with its own ready-to-use copy for Instagram, Facebook and
+suits. Posting more than one of the week's options over the week, rather than saving
+only the single strongest clip, builds a steadier rhythm than any one post going big.
+Every reel comes with its own ready-to-use copy for Instagram, Facebook and
 YouTube Shorts. Keep clips under 90 seconds (Facebook Reels limit).

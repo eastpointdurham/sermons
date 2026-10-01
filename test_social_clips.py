@@ -200,6 +200,9 @@ check("strategy has no weekly posting rhythm", "Weekly rhythm" not in open(sc.ST
 _strat = open(sc.STRATEGY_FILE).read()
 check("each option gets its own next step", "a different one on each reel option" in _strat)
 check("hashtags stay sparing", "At most two local tags" in _strat and "no emoji" in _strat.lower())
+check("rubric asks clips to end strong", "Ends on its strongest line" in _strat)
+check("using-the-reels still frames posting as options, not a schedule",
+      "not a schedule" in _strat and "builds a steadier rhythm" in _strat)
 
 # colour: measured white balance, levels, and one LUT per clip ----------------------
 import math as _math
