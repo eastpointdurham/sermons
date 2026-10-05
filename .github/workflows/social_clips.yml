@@ -25,6 +25,14 @@ on:
         description: "Re-render the same clips into the same folder (true/false), e.g. after a design change"
         required: false
         default: "false"
+      extend_clip:
+        description: "With reuse_plan: lengthen this reel number (e.g. 1)"
+        required: false
+        default: ""
+      extend_to:
+        description: "...to about this many seconds (max 88)"
+        required: false
+        default: "88"
 
 permissions:
   contents: write        # to commit social_clips.json
@@ -78,6 +86,8 @@ jobs:
           SOCIAL_ONLY_FILE_ID: ${{ github.event.inputs.drive_file_id }}
           SOCIAL_LAYOUT: ${{ github.event.inputs.layout || 'fill' }}
           SOCIAL_REUSE_PLAN: ${{ github.event.inputs.reuse_plan == 'true' && '1' || '0' }}
+          SOCIAL_EXTEND_CLIP: ${{ github.event.inputs.extend_clip }}
+          SOCIAL_EXTEND_TO: ${{ github.event.inputs.extend_to || '88' }}
           WHISPER_MODEL: small.en
         run: python social_clips.py
 

@@ -84,13 +84,20 @@ Drive › Social Drafts › `<date> <title>`:
   a capped exposure lift, a soft filmic curve and skin-protected vibrance. Set the
   `SOCIAL_GRADE` environment variable to `off` to skip it.
 - Audio: `audio.py` measures each clip's noise floor, then removes rumble (75 Hz
-  high-pass) and hiss (an FFT denoiser set from that floor) and softens the pauses,
+  high-pass) and hiss (RNNoise, a small speech-trained neural denoiser that also
+  clears hiss under the voice, then a light FFT pass set from that floor; the model
+  is fetched at run time, `AUDIO_RNN_MODEL` picks it) and softens the pauses,
   before the loudness step, so normalising no longer swells the hiss between
   sentences. The podcast MP3 gets the same clean-up plus podcast loudness (-16 LUFS).
   Set `AUDIO_CLEAN` to `off` to skip it. The YouTube upload is the original file.
 - Re-rendering a week after a design change: Actions › **Make Social Reels** › Run
   workflow with the sermon's Drive file id and `reuse_plan = true`. The same clips are
   rebuilt and replace the files in the same folder (Drive keeps the old versions).
+  To make one reel longer, also set `extend_clip` (the reel number) and `extend_to`
+  (seconds, at most 88 for Facebook): whole sentences are added, it ends on a full
+  stop, and it never runs into another reel.
+- Wide shots: when the speaker sits low in the crop, the camera zooms a little closer
+  (up to 2.4x) and the captions move into the space above the head.
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
 
 ## Thumbnails

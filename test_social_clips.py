@@ -294,6 +294,24 @@ try:
 finally:
     sc.list_folder, sc.download = _rl, _rd
 
+# lengthening a reel ---------------------------------------------------------------
+_ss = [{"a": i, "b": i, "start": i * 5.0, "end": i * 5.0 + 4.6, "text": f"Sentence {i}" + ("," if i == 9 else ".")}
+       for i in range(30)]
+_pl = {"clips": [{"start_sentence": 4, "end_sentence": 8}, {"start_sentence": 15, "end_sentence": 18}]}
+_g = sc.extend_clip(_pl, _ss, 1, 88)
+_c1 = _pl["clips"][0]
+check("reel grows", _g and _g[1] > _g[0])
+check("grown reel stays under the cap", _g[1] <= sc.MAX_LEN)
+check("never runs into the next reel", _c1["end_sentence"] < 14)
+check("ends on a whole thought", _ss[_c1["end_sentence"]]["text"].endswith("."))
+check("grows backward when blocked", _c1["start_sentence"] < 4)
+_pl2 = {"clips": [{"start_sentence": 4, "end_sentence": 8}]}
+sc.extend_clip(_pl2, _ss, 1, 40)
+check("stops near the target", _ss[_pl2["clips"][0]["end_sentence"]]["end"] - _ss[4]["start"] <= 40)
+check("no such reel", sc.extend_clip(_pl2, _ss, 3, 88) is None)
+_res = sc.resolve_clips(_pl, _ss, [{"w": "x", "start": 0, "end": 1}] * 400)
+check("grown plan keeps every reel", len(_res) == 2)
+
 # audio: hiss and rumble out before the loudness step ---------------------------------
 import audio as AU
 _hissy = AU.clean_filter({"floor": -62.0, "speech": -19.0})
@@ -320,6 +338,17 @@ with tempfile.TemporaryDirectory() as _t:
     _ff = subprocess.run(["ffmpeg", "-v", "error", "-i", _w, "-af", _chain, "-f", "null", "-"],
                          capture_output=True, text=True)
     check("ffmpeg accepts the audio chain", _ff.returncode == 0)
+_rnn = AU.clean_filter({"floor": -62.0, "speech": -19.0}, "/m/std.rnnn")
+check("neural denoise under the voice", "arnndn=m='/m/std.rnnn'" in _rnn and _rnn.index("arnndn") < _rnn.index("afftdn"))
+check("with the model, FFT only takes the residue", f"nr={AU.MIN_NR}:" in _rnn)
+check("no model: FFT works harder", _nr(-65, -16) >= AU.MIN_NR + 4)
+_m = AU.rnn_model() if os.path.exists(os.path.join(AU.RNN_DIR, f"{AU.RNN_MODEL}.rnnn")) else None
+if _m:
+    with tempfile.TemporaryDirectory() as _t:
+        _ff = subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anoisesrc=a=0.003:d=2:r=48000",
+                              "-af", AU.clean_filter({"floor": -50.0, "speech": -20.0}, _m), "-f", "null", "-"],
+                             capture_output=True, text=True)
+        check("ffmpeg runs the neural denoiser", _ff.returncode == 0)
 os.environ["AUDIO_CLEAN"] = "off"
 check("audio cleaning can be switched off", AU.filters("none.wav")[0] == "")
 del os.environ["AUDIO_CLEAN"]
@@ -436,6 +465,19 @@ check("camera follows the preacher, not the front row", all(x < 0.75 for x in xs
 check("camera ignores the one-frame false face", all(x > 0.2 for x in xs))
 check("camera keeps him across the gap", min(xs) < 0.35 and max(xs) > 0.65)
 check("no speaker when nobody is seen", RF.pick_speaker([(0, []), (6, [])]) == [])
+
+# wide shots: closer crop, captions in the space above the head
+check("face low in a wide crop", RF.face_position(0.55, 0.95) > RF.LOW_FACE)
+check("head room kept in a tight crop", abs(RF.face_position(0.40, 0.4) - RF.HEAD_ROOM) < 0.01)
+_br = json.load(open("social/brand.json"))
+_fd = "social/fonts"
+_hi = {"hook": "A hook", "head_top": 0.55}
+_lo = {"hook": "A hook", "head_top": 0.20}
+for _st in ("bold", "editorial"):
+    _y = rd.caption_y(_hi, _br, _fd, "fill", _st)
+    check(f"{_st}: captions move above a low head", _y < 0.55 * rd.H - 100)
+    check(f"{_st}: captions stay put with no room", rd.caption_y(_lo, _br, _fd, "fill", _st) > 1200)
+    check(f"{_st}: unknown head keeps default", rd.caption_y({"hook": "A hook"}, _br, _fd, "fill", _st) > 1200)
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

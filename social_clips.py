@@ -525,6 +525,7 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
                                             sheet_path=sheet)
             clip["reframe"] = stats
             clip["crop_center"] = stats.get("mean_cx", 0.5)
+            clip["head_top"] = stats.get("head_top")       # captions may sit above the head
             log(f"    camera: {stats}")
         src, src_ss, base = vertical, 0.0, "null"
     else:
@@ -632,6 +633,40 @@ def plan_html(plan, clips, meta, service_date):
 # main
 # --------------------------------------------------------------------------
 
+def extend_clip(plan, sentences, n, target):
+    """Lengthen clip n (1-based, as numbered in the drafts) toward target seconds:
+    add the following sentences while they fit, end on one that finishes a
+    thought, never run into another clip; grow backward if forward is blocked.
+    Returns (old seconds, new seconds) or None."""
+    clips = plan.get("clips", [])
+    if not 1 <= n <= len(clips):
+        return None
+    target = min(float(target), MAX_LEN)
+    c = clips[n - 1]
+    a, b = int(c["start_sentence"]), int(c["end_sentence"])
+    others = [(int(o["start_sentence"]), int(o["end_sentence"]))
+              for i, o in enumerate(clips) if i != n - 1]
+
+    def free(k):
+        return 0 <= k < len(sentences) and all(not lo - 1 <= k <= hi + 1 for lo, hi in others)
+
+    def span(x, y):
+        return sentences[y]["end"] - sentences[x]["start"] + 0.5
+
+    old = span(a, b)
+    end = b
+    while free(end + 1) and span(a, end + 1) <= target:
+        end += 1
+    while end > b and not re.search(r"[.?!][\"'”’)]*$", sentences[end]["text"].strip()):
+        end -= 1                                        # finish on a whole thought
+    start = a
+    if span(start, end) < target - 8:                   # still short: begin a little earlier
+        while free(start - 1) and span(start - 1, end) <= target:
+            start -= 1
+    c["start_sentence"], c["end_sentence"] = start, end
+    return round(old, 1), round(span(start, end), 1)
+
+
 def reuse_plan(drive, sermon, state, workdir):
     """(plan, words, folder id) from this sermon's latest drafts folder that still
     holds plan.json and transcript_words.json, so a re-render (e.g. after a
@@ -653,7 +688,7 @@ def reuse_plan(drive, sermon, state, workdir):
             words = json.load(open(paths["transcript_words.json"]))
             for c in plan.get("clips", []):             # render fresh; keep the choice
                 for k in ("start", "end", "files", "file", "drive_id", "drive_ids", "reframe",
-                          "grade", "crop_center", "text", "sentence_starts"):
+                          "grade", "audio", "crop_center", "head_top", "text", "sentence_starts"):
                     c.pop(k, None)
             return plan, words, rec["drafts_folder_id"]
     log("  ! nothing to reuse for this sermon; choosing clips afresh")
@@ -694,7 +729,11 @@ def process(drive, sermon, brand, state):
         sentences = sentences_from_words(words)
 
         if reused:
-            pass
+            if os.environ.get("SOCIAL_EXTEND_CLIP"):
+                n = int(os.environ["SOCIAL_EXTEND_CLIP"])
+                grown = extend_clip(plan, sentences, n, float(os.environ.get("SOCIAL_EXTEND_TO", MAX_LEN)))
+                log(f"  reel {n} lengthened: {grown[0]}s -> {grown[1]}s" if grown
+                    else f"  ! no reel {n} to lengthen")
         elif os.environ.get("SOCIAL_PLAN_JSON"):        # testing: skip the model call
             plan = json.load(open(os.environ["SOCIAL_PLAN_JSON"]))
         else:

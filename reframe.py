@@ -19,6 +19,10 @@ import numpy as np
 
 OUT_W, OUT_H = 1080, 1920
 MAX_UPSCALE = float(os.environ.get("SOCIAL_MAX_UPSCALE", "2.1"))
+# a wide shot (the face would sit low, under a band of empty backdrop) may zoom
+# a little further; past this, 1080p footage visibly softens
+WIDE_UPSCALE = float(os.environ.get("SOCIAL_WIDE_UPSCALE", "2.4"))
+LOW_FACE = 0.45           # face centre lower than this in the frame = a wide shot
 HEAD_ROOM = 0.30          # face centre sits this far down the frame
 DEAD_ZONE = 0.07          # of source width: small moves don't move the camera
 
@@ -159,6 +163,14 @@ def _smooth(vals, radius):
     return np.convolve(pad, k, mode="valid")
 
 
+def face_position(face_y, crop_h_frac):
+    """Where a face at face_y (fraction of source height) lands in a vertical crop
+    crop_h_frac of the source tall, placed for HEAD_ROOM but kept inside the
+    source (0 = top of the reel, 1 = bottom)."""
+    cy = min(max(face_y + crop_h_frac * (0.5 - HEAD_ROOM), crop_h_frac / 2), 1 - crop_h_frac / 2)
+    return (face_y - (cy - crop_h_frac / 2)) / crop_h_frac
+
+
 def plan_path(video, start, dur):
     """Per-frame (cx, cy, crop_h) in source pixels, plus stats for the log."""
     import cv2
@@ -184,8 +196,11 @@ def plan_path(video, start, dur):
     ys = np.interp(t, obs_t, [o[1] for o in obs])
     fh = np.median([o[2] for o in obs])
 
-    # zoom: face about 1/12 of frame height, but never enlarge past MAX_UPSCALE
+    # zoom: face about 1/12 of frame height, but never enlarge past MAX_UPSCALE;
+    # a wide shot that would leave the face low gets up to WIDE_UPSCALE
     crop_h_frac = min(1.0, max(OUT_H / MAX_UPSCALE / h, fh * 12))
+    if face_position(float(np.median(ys)), crop_h_frac) > LOW_FACE:
+        crop_h_frac = min(crop_h_frac, max(OUT_H / max(WIDE_UPSCALE, MAX_UPSCALE) / h, fh * 12))
     crop_h = crop_h_frac * h
     crop_w = crop_h * 9 / 16
 
@@ -209,7 +224,11 @@ def plan_path(video, start, dur):
 
     cx = np.clip(cam * w, crop_w / 2, w - crop_w / 2)
     cy = np.clip(y_cam * h + crop_h * (0.5 - HEAD_ROOM), crop_h / 2, h - crop_h / 2)
-    stats = {"detector": detector[0], "samples": len(samples), "with_faces": seen,
+    # where the top of the head sits in the vertical frame (0 = top), at its
+    # highest moment, so captions can use the space above it
+    head = (y_cam * h - fh * h * 0.8 - (cy - crop_h / 2)) / crop_h
+    stats = {"head_top": round(float(np.percentile(head, 5)), 3),
+             "detector": detector[0], "samples": len(samples), "with_faces": seen,
              "detections": len(obs), "crop_h_frac": round(float(crop_h_frac), 3),
              "upscale": round(OUT_H / crop_h, 2), "x_range": round(float(np.ptp(cam)), 3),
              "mean_cx": round(float(np.mean(cx)) / w, 3)}

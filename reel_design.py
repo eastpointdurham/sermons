@@ -260,9 +260,10 @@ def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
     if style == "editorial":
         # Let the teaching carry it: no banner, no logo. Just a whisper of shade
         # behind the caption line so white type holds on light backgrounds.
+        mid = caption_y(clip, brand, fonts_dir, layout, style) - 70   # shade follows the captions
         band = vertical_scrim(520, ink, 0, 70)
-        canvas.alpha_composite(band, (0, 700))
-        canvas.alpha_composite(vertical_scrim(520, ink, 70, 0), (0, 1220))
+        canvas.alpha_composite(band, (0, max(0, mid - 520)))
+        canvas.alpha_composite(vertical_scrim(520, ink, 70, 0), (0, mid))
         canvas.save(out_path)
         return out_path
 
@@ -366,12 +367,32 @@ def caption_frame(words, active, brand, fonts_dir, cap_y):
     return shadow
 
 
+EDITORIAL_TOP = 260      # under Instagram's own top bar when there is no hook banner
+
+
+def caption_y(clip, brand, fonts_dir, layout, style="bold"):
+    """Vertical centre of the captions. Default: the lower third. When the camera
+    reports a band of empty backdrop above the speaker's head big enough for two
+    caption lines, the captions sit there instead (over the backdrop, not over
+    the speaker or the front row)."""
+    if style == "editorial":
+        default, block = (1290 if layout == "fill" else 1450), 2 * int(EDITORIAL_CAP_SIZE * 1.25)
+        top = EDITORIAL_TOP
+    else:
+        default, block = (1330 if layout == "fill" else 1560), 2 * int(CAP_SIZE * 1.3)
+        top = hook_block_height(clip.get("hook", ""), fonts_dir, clip.get("scripture")) + 20
+    head = clip.get("head_top")
+    if layout != "fill" or head is None:
+        return default
+    head_px = head * H - 40                        # clear of the hair
+    if head_px - top < block + 60:
+        return default
+    return int(round((top + head_px) / 2))
+
+
 def caption_track(clip, chunks, brand, fonts_dir, layout, workdir, style="bold"):
     """Write caption PNGs and an ffconcat list; returns the list path."""
-    if style == "editorial":
-        cap_y = 1290 if layout == "fill" else 1450
-    else:
-        cap_y = 1330 if layout == "fill" else 1560
+    cap_y = caption_y(clip, brand, fonts_dir, layout, style)
     t0, dur = clip["start"], clip["end"] - clip["start"]
     blank = os.path.join(workdir, f"c{clip['n']}_blank.png")
     Image.new("RGBA", (W, H), (0, 0, 0, 0)).save(blank)
