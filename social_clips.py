@@ -405,11 +405,19 @@ def resolve_clips(plan, sentences, words):
         a, b = int(c["start_sentence"]), int(c["end_sentence"])
         if not (0 <= a <= b < len(sentences)):
             continue
+        def cut(a, b):                               # first and last word of the reel
+            wa, wb = sentences[a]["a"], sentences[b]["b"]
+            if c.get("start_word") is not None:      # hand-set cut points (trim_clip)
+                wa = min(max(int(c["start_word"]), sentences[a]["a"]), sentences[a]["b"])
+            if c.get("end_word") is not None and b == int(c["end_sentence"]):
+                wb = min(max(int(c["end_word"]), sentences[b]["a"]), sentences[b]["b"])
+            return wa, wb
         # trim trailing sentences until under the cap
-        while b > a and sentences[b]["end"] - sentences[a]["start"] > MAX_LEN:
+        while b > a and words[cut(a, b)[1]]["e"] - words[cut(a, b)[0]]["s"] > MAX_LEN:
             b -= 1
-        start = max(0.0, sentences[a]["start"] - 0.15)
-        end = sentences[b]["end"] + 0.35
+        wa, wb = cut(a, b)
+        start = max(0.0, words[wa]["s"] - 0.15)
+        end = words[wb]["e"] + 0.35
         if end - start < MIN_LEN * 0.75 or end - start > MAX_LEN + 1:
             log(f"  skip clip {a}-{b}: {end - start:.1f}s")
             continue
@@ -419,9 +427,9 @@ def resolve_clips(plan, sentences, words):
         taken.append((start, end))
         c.update({"start_sentence": a, "end_sentence": b, "start": round(start, 2),
                   "end": round(end, 2),
-                  "words": [w for w in words[sentences[a]["a"]:sentences[b]["b"] + 1]],
-                  "text": " ".join(sentences[k]["text"] for k in range(a, b + 1)),
-                  "sentence_starts": [sentences[k]["start"] for k in range(a, b + 1)]})
+                  "words": [w for w in words[wa:wb + 1]],
+                  "text": " ".join(w["w"] for w in words[wa:wb + 1]),
+                  "sentence_starts": [max(start, sentences[k]["start"]) for k in range(a, b + 1)]})
         clips.append(c)
     return clips
 
@@ -667,6 +675,40 @@ def extend_clip(plan, sentences, n, target):
     return round(old, 1), round(span(start, end), 1)
 
 
+def _find_phrase(words, phrase, near):
+    """(first, last) word index of phrase in words, the occurrence nearest `near` seconds."""
+    want = re.findall(r"[a-z0-9']+", phrase.lower())
+    norm = [re.sub(r"[^a-z0-9']", "", w["w"].lower()) for w in words]
+    hits = [i for i in range(len(words) - len(want) + 1) if want and norm[i:i + len(want)] == want]
+    if not hits:
+        return None
+    i = min(hits, key=lambda i: abs(words[i]["s"] - near))
+    return i, i + len(want) - 1
+
+
+def trim_clip(plan, sentences, words, n, start_at="", end_at=""):
+    """Set reel n to begin at the words start_at and/or end after the words end_at
+    (phrases from the sermon, matched nearest the reel). Returns a note for the log."""
+    clips = plan.get("clips", [])
+    if not 1 <= n <= len(clips):
+        return f"no reel {n}"
+    c = clips[n - 1]
+    near = sentences[int(c["start_sentence"])]["start"]
+    sentence_of = lambda j: next(k for k, s in enumerate(sentences) if s["a"] <= j <= s["b"])
+    notes = []
+    for phrase, key, pick in ((start_at, "start", 0), (end_at, "end", 1)):
+        if not phrase:
+            continue
+        hit = _find_phrase(words, phrase, near)
+        if not hit:
+            notes.append(f"! {phrase!r} not found")
+            continue
+        j = hit[pick]
+        c[f"{key}_word"], c[f"{key}_sentence"] = j, sentence_of(j)
+        notes.append(f"{key} at {words[j]['s']:.1f}s ({phrase!r})")
+    return "; ".join(notes)
+
+
 def reuse_plan(drive, sermon, state, workdir):
     """(plan, words, folder id) from this sermon's latest drafts folder that still
     holds plan.json and transcript_words.json, so a re-render (e.g. after a
@@ -729,7 +771,13 @@ def process(drive, sermon, brand, state):
         sentences = sentences_from_words(words)
 
         if reused:
-            if os.environ.get("SOCIAL_EXTEND_CLIP"):
+            if os.environ.get("SOCIAL_EXTEND_CLIP") and (os.environ.get("SOCIAL_START_AT")
+                                                         or os.environ.get("SOCIAL_END_AT")):
+                n = int(os.environ["SOCIAL_EXTEND_CLIP"])
+                log(f"  reel {n}: " + trim_clip(plan, sentences, words, n,
+                                                 os.environ.get("SOCIAL_START_AT", ""),
+                                                 os.environ.get("SOCIAL_END_AT", "")))
+            elif os.environ.get("SOCIAL_EXTEND_CLIP"):
                 n = int(os.environ["SOCIAL_EXTEND_CLIP"])
                 grown = extend_clip(plan, sentences, n, float(os.environ.get("SOCIAL_EXTEND_TO", MAX_LEN)))
                 log(f"  reel {n} lengthened: {grown[0]}s -> {grown[1]}s" if grown

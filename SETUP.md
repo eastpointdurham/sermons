@@ -95,7 +95,8 @@ Drive › Social Drafts › `<date> <title>`:
   rebuilt and replace the files in the same folder (Drive keeps the old versions).
   To make one reel longer, also set `extend_clip` (the reel number) and `extend_to`
   (seconds, at most 88 for Facebook): whole sentences are added, it ends on a full
-  stop, and it never runs into another reel.
+  stop, and it never runs into another reel. Or set `start_at` and/or `end_at` to words from the
+  sermon (e.g. "the whole church") to start or end that reel exactly there.
 - Wide shots: when the speaker sits low in the crop, the camera zooms a little closer
   (up to 2.4x) and the captions move into the space above the head.
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.

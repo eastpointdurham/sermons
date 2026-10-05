@@ -309,8 +309,21 @@ _pl2 = {"clips": [{"start_sentence": 4, "end_sentence": 8}]}
 sc.extend_clip(_pl2, _ss, 1, 40)
 check("stops near the target", _ss[_pl2["clips"][0]["end_sentence"]]["end"] - _ss[4]["start"] <= 40)
 check("no such reel", sc.extend_clip(_pl2, _ss, 3, 88) is None)
-_res = sc.resolve_clips(_pl, _ss, [{"w": "x", "start": 0, "end": 1}] * 400)
+_res = sc.resolve_clips(_pl, _ss, [{"w": "x", "s": i * 5.0, "e": i * 5.0 + 4.6} for i in range(30)])
 check("grown plan keeps every reel", len(_res) == 2)
+
+# hand-set cut points: start and end on given words
+_tw = words_from("I have none. But he does the whole church. He meets us. We all need him and more.")
+_ts = sc.sentences_from_words(_tw)
+for _x in _tw:
+    _x["s"] *= 6; _x["e"] *= 6                    # stretch to reel length
+_ts = sc.sentences_from_words(_tw)
+_tp = {"clips": [{"start_sentence": 0, "end_sentence": 2}]}
+_note = sc.trim_clip(_tp, _ts, _tw, 1, "the whole church", "need him")
+_rc = sc.resolve_clips(_tp, _ts, _tw)
+check("reel starts at the chosen words", _rc and _rc[0]["text"].startswith("the whole church"))
+check("reel ends after the chosen words", _rc and _rc[0]["text"].endswith("need him"))
+check("missing phrase is reported", "not found" in sc.trim_clip(_tp, _ts, _tw, 1, "no such words"))
 
 # audio: hiss and rumble out before the loudness step ---------------------------------
 import audio as AU

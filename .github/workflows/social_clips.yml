@@ -33,6 +33,14 @@ on:
         description: "...to about this many seconds (max 88)"
         required: false
         default: "88"
+      start_at:
+        description: "...or start that reel at these words (e.g. the whole church)"
+        required: false
+        default: ""
+      end_at:
+        description: "...and end it after these words"
+        required: false
+        default: ""
 
 permissions:
   contents: write        # to commit social_clips.json
@@ -88,6 +96,8 @@ jobs:
           SOCIAL_REUSE_PLAN: ${{ github.event.inputs.reuse_plan == 'true' && '1' || '0' }}
           SOCIAL_EXTEND_CLIP: ${{ github.event.inputs.extend_clip }}
           SOCIAL_EXTEND_TO: ${{ github.event.inputs.extend_to || '88' }}
+          SOCIAL_START_AT: ${{ github.event.inputs.start_at }}
+          SOCIAL_END_AT: ${{ github.event.inputs.end_at }}
           WHISPER_MODEL: small.en
         run: python social_clips.py
 
