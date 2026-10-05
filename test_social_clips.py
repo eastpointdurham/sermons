@@ -370,6 +370,9 @@ d1 = _date(2026, 9, 27)
 check("photo pick is stable", T.pick_photo(photos, d1) == T.pick_photo(list(reversed(photos)), d1))
 check("photo rotates weekly", T.pick_photo(photos, d1) != T.pick_photo(photos, _date(2026, 10, 4)))
 check("no photos -> None", T.pick_photo([{"name": "x.txt"}], d1) is None)
+_stage = [(0.18, 0.29, 0.07, 0.95), (0.02, 0.32, 0.09, 0.91), (0.81, 0.18, 0.07, 0.91), (0.49, 0.32, 0.09, 0.91)]
+check("preacher photo frames the preacher, not the band", T.speaker_face(_stage)[0] == 0.49)
+check("no faces, no speaker", T.speaker_face([]) is None)
 from PIL import Image as _Im, ImageDraw as _Dr
 two = _Im.new("RGBA", (400, 200), (242, 232, 218, 255))
 _Dr.Draw(two).rectangle((0, 120, 400, 200), fill=(142, 74, 73, 255))

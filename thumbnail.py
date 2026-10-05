@@ -87,6 +87,7 @@ def choose_photo(drive, photos_root, preacher, service_date):
         if key and key in folders:
             photo = pick_photo(sc.list_folder(drive, folders[key]["id"]), service_date)
             if photo:
+                photo["speaker"] = key == _norm(preacher)
                 return photo
     return None
 
@@ -233,13 +234,22 @@ def face_box(photo):
     return max(faces, key=lambda f: f[2] * f[3])[:3] if faces else None
 
 
-def _full_bleed(photo, ground):
+def speaker_face(faces):
+    """The preacher in a stage photo with the band around: photographers centre
+    the one they are shooting, so a large face near the middle wins."""
+    return max(faces, key=lambda f: f[2] * (1.2 - abs(f[0] - 0.5) * 1.6)) if faces else None
+
+
+def _full_bleed(photo, ground, speaker=False):
     """The photo across the whole frame, the main face kept right of the text,
-    shaded into the series' ground on the left and along the bottom for type."""
+    shaded into the series' ground on the left and along the bottom for type.
+    speaker: a preacher photo, so frame the preacher even with others on stage."""
     from PIL import ImageChops, ImageEnhance
     faces = faces_in(photo)
-    group = len(faces) >= 3                        # a band, a crowd: keep everyone in
-    if group:
+    group = len(faces) >= 3 and not speaker        # a band, a crowd: keep everyone in
+    if speaker and faces:
+        cx, cy = speaker_face(faces)[:2]
+    elif group:
         cx = sum(f[0] for f in faces) / len(faces)
         cy = sum(f[1] for f in faces) / len(faces)
     elif faces:
@@ -274,7 +284,8 @@ def _title_lines(text, fonts_dir, max_w, sizes, max_lines):
     return f, size, lines
 
 
-def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art_path=None):
+def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art_path=None,
+           speaker=False):
     """The series art leads: a full-bleed photo with the lockup and title over its
     shaded left side, or, with no photo, the lockup large and centred and the
     title below it."""
@@ -303,7 +314,7 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
         return mark.height
 
     if photo_path:
-        img = _full_bleed(Image.open(photo_path).convert("RGB"), ink)
+        img = _full_bleed(Image.open(photo_path).convert("RGB"), ink, speaker)
         d = ImageDraw.Draw(img)
         x = 60
         if lockup:
@@ -388,7 +399,7 @@ def make(drive, entry, service_date, sermons_folder, workdir):
 
     out = render(entry, service_date, brand, sc.FONTS_DIR,
                  os.path.join(workdir, f"Thumbnail {service_date.isoformat()}.jpg"),
-                 photo_path, art_path)
+                 photo_path, art_path, speaker=bool(photo and photo.get("speaker")))
     thumbs_folder = _folder(drive, "THUMBNAILS_FOLDER_ID", "Thumbnails", sermons_folder)
     up = sc.upload(drive, out, os.path.basename(out), thumbs_folder, "image/jpeg")
 
