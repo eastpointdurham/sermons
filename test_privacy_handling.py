@@ -112,8 +112,15 @@ check("falls back to API key client", solo.parts_requested, ["snippet,status"])
 
 
 # --- partition_videos lifecycle --------------------------------------------
+_pub, _priv = partition_videos([{"id": "nt", "title": "t", "privacy": "private", "transcript": None}], {})
+check("draft without captions is retried next run", _priv, [])
+_pub, _priv = partition_videos([{"id": "ok", "title": "t", "privacy": "private", "transcript": "x"}], {})
+check("draft with captions is recorded", [p["id"] for p in _priv], ["ok"])
+
 
 # Week 1: the draft is uploaded. It must not reach the public archive.
+for _v in vids:                     # main() has fetched their captions by now
+    _v["transcript"] = "words"
 pub, priv = partition_videos(vids, {}, today="2026-08-18")
 check("week1: only public in archive", sorted(v["id"] for v in pub), ["aaa", "ccc"])
 check("week1: drafts tracked", sorted(s["id"] for s in priv), ["bbb", "eee"])

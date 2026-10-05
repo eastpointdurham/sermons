@@ -92,7 +92,9 @@ def partition_videos(videos, private_seen, today=None):
     still_private = list(private_seen.values())
     known = {s["id"] for s in still_private}
     for v in hidden_videos:
-        if v["id"] not in known:
+        # no transcript yet (YouTube makes captions a few hours after upload):
+        # leave it unrecorded so the next hourly run tries again
+        if v["id"] not in known and v.get("transcript", True):
             still_private.append({
                 "id":      v["id"],
                 "title":   v["title"],
@@ -659,7 +661,12 @@ def main():
     new_sermons = [
         v for v in videos
         if v["id"] not in existing and v["id"] not in private_seen
+        and (v["transcript"] or v.get("privacy") == "public")
     ]
+    waiting = sum(1 for v in videos if v.get("privacy") != "public"
+                  and v["id"] not in private_seen and not v["transcript"])
+    if waiting:
+        print(f"{waiting} draft(s) have no captions yet — will try again next run")
     if new_sermons:
         with open("new_sermons.json", "w", encoding="utf-8") as f:
             json.dump(new_sermons, f, indent=2, ensure_ascii=False)
