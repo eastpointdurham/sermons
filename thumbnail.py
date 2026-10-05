@@ -215,6 +215,18 @@ def _grain(img, amount=6, seed=3):
     return ImageChops.add(img, noise, scale=1.0, offset=-128)
 
 
+LOGO_SVG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "social", "logo.svg")
+
+
+def logo(height, color_hex):
+    """The full horizontal Eastpoint logo (sunburst and wordmark), height px tall."""
+    import cairosvg
+    import io
+    svg = open(LOGO_SVG, encoding="utf-8").read().replace("#f3f3f3", color_hex)
+    png = cairosvg.svg2png(bytestring=svg.encode(), output_height=height)
+    return Image.open(io.BytesIO(png)).convert("RGBA")
+
+
 def faces_in(photo):
     """[(cx, cy, h, score)] for every face in the photo, as fractions; [] if none."""
     try:
@@ -303,7 +315,13 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
     lockup = cutout(trim_to_content(art)) if art else None
 
     def brand_mark(x, y, center=False):
-        """No series art yet: the sunburst and the series name in type."""
+        """No series art: the full Eastpoint logo; with a series but no art yet,
+        the sunburst and the series name in type."""
+        if not series_key(series):
+            mark = logo(56, _hex(off))
+            x = int((TW - mark.width) // 2) if center else x
+            img.paste(mark, (x, y), mark)
+            return mark.height
         mark = rd.sunburst(72, _hex(accent))
         label = rd.font("semibold", 30, fonts_dir)
         name = series_key(series).upper() or "EASTPOINT CHURCH"
