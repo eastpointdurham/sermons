@@ -93,6 +93,7 @@ jobs:
           SOCIAL_DRAFTS_FOLDER_ID: ${{ vars.SOCIAL_DRAFTS_FOLDER_ID }}
           SOCIAL_ONLY_FILE_ID: ${{ github.event.inputs.drive_file_id }}
           SOCIAL_LAYOUT: ${{ github.event.inputs.layout || 'fill' }}
+          BOARD_ROOM_MIX: ${{ vars.BOARD_ROOM_MIX || '0.2' }}
           SOCIAL_REUSE_PLAN: ${{ github.event.inputs.reuse_plan == 'true' && '1' || '0' }}
           SOCIAL_EXTEND_CLIP: ${{ github.event.inputs.extend_clip }}
           SOCIAL_EXTEND_TO: ${{ github.event.inputs.extend_to || '88' }}

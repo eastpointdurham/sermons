@@ -366,6 +366,33 @@ os.environ["AUDIO_CLEAN"] = "off"
 check("audio cleaning can be switched off", AU.filters("none.wav")[0] == "")
 del os.environ["AUDIO_CLEAN"]
 
+# soundboard audio: found in sync, wrong file refused ------------------------------
+import board_audio as BA
+with tempfile.TemporaryDirectory() as _t:
+    _env = "volume='0.15+0.85*abs(sin(t*3.1)*sin(t*1.7+1)*sin(t*0.53))':eval=frame"
+    _bd, _vd, _wr = (os.path.join(_t, n) for n in ("board.wav", "video.mp4", "wrong.wav"))
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anoisesrc=a=0.3:d=110:r=48000:s=7",
+                    "-af", _env, _bd], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:s=160x120:r=30:d=90",
+                    "-i", _bd, "-f", "lavfi", "-i", "anoisesrc=a=0.02:d=90:r=48000:s=3",
+                    "-filter_complex", "[1]atrim=start=12.5,asetpts=PTS-STARTPTS,lowpass=f=4000,volume=0.5[c];"
+                    "[c][2]amix=2:duration=shortest:normalize=0[a]",
+                    "-map", "0:v", "-map", "[a]", "-t", "90", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", _vd], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", _bd, "-af", "areverse", _wr], check=True)
+    _m = BA.measure(_vd, _bd)
+    check("board offset found", "offset" in _m and abs(_m["offset"] - 12.5) < 0.01)
+    check("no drift invented", "drift" in _m and abs(_m["drift"]) < 1e-4)
+    check("wrong board file refused", "error" in BA.measure(_vd, _wr))
+    _out, _note = BA.apply(_vd, _bd, _t)
+    check("video gets the board audio", _out != _vd and "board audio in" in _note)
+    _vcodec = lambda f: subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                        "stream=codec_name,nb_frames", "-of", "csv=p=0", f],
+                                       capture_output=True, text=True).stdout.strip()
+    check("picture copied, not re-encoded", _vcodec(_out) == _vcodec(_vd))
+    _out2, _note2 = BA.apply(_vd, _wr, _t)
+    check("camera audio kept for a wrong file", _out2 == _vd and "kept camera audio" in _note2)
+
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
 from datetime import date as _date

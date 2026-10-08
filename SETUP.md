@@ -101,6 +101,19 @@ Drive › Social Drafts › `<date> <title>`:
   (up to 2.4x) and the captions move into the space above the head.
 - Sharpest results come from 4K recordings: the vertical crop then needs no enlarging.
 
+## Soundboard audio
+
+Drop the board recording (WAV, MP3, M4A, AIFF or FLAC) in the Drive "Sermons"
+folder with the service date in its name, like the video, e.g. `Board 10-11-26.wav`.
+It may be the whole service. `board_audio.py` lines it up with the camera's own
+sound (to the sample, correcting the small clock drift between the two), mixes a
+little camera audio underneath for the room (`BOARD_ROOM_MIX`, default 0.2), and
+uses it for the YouTube draft, the podcast MP3, the transcript and the reels. The
+picture is copied, not re-encoded. A new recording waits up to `BOARD_WAIT_HOURS`
+(default 2) for its board audio, then goes ahead with camera sound. If the files do
+not clearly match, the camera audio is kept and the run log says why.
+`BOARD_AUDIO=off` switches it off.
+
 ## Thumbnails
 
 On (the `AUTO_THUMBNAILS` repository variable is `1`; set it to anything else to

@@ -26,7 +26,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime, timezone
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -51,6 +51,8 @@ AUTO_THUMBNAILS   = os.environ.get("AUTO_THUMBNAILS") == "1"
 # Recordings dated before this are ignored, so turning the uploader on does not
 # re-upload sermons that already went to YouTube by hand. YYYY-MM-DD.
 UPLOAD_SINCE      = os.environ.get("UPLOAD_SINCE", "")
+# A new recording waits this long for its soundboard audio (board_audio.py)
+BOARD_WAIT_HOURS  = float(os.environ.get("BOARD_WAIT_HOURS", "2"))
 
 CHURCH_NAME = "Eastpoint Church"
 DEFAULT_PREACHER = "Peter Frey"
@@ -460,6 +462,20 @@ def upload_file(drive, path, name, folder_id, mime):
 
 # --------------------------------------------------------------------------
 
+def waits_for_board(video, files, now=None):
+    """True while a new recording should wait for its soundboard audio."""
+    import board_audio
+    if BOARD_WAIT_HOURS <= 0 or board_audio.find_board(
+            files, parse_date_from_filename(video["name"]), parse_date_from_filename):
+        return False
+    try:
+        made = datetime.fromisoformat(video["createdTime"].replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        return False
+    now = now or datetime.now(timezone.utc)
+    return (now - made).total_seconds() < BOARD_WAIT_HOURS * 3600
+
+
 def load_state():
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, encoding="utf-8") as f:
@@ -477,12 +493,16 @@ def main():
     done_ids = {s["drive_file_id"] for s in state}
 
     drive = drive_service()
-    videos = [f for f in list_folder(drive, SERMON_FOLDER_ID)
-              if is_sermon_video(f["name"], f.get("mimeType"))]
+    files = list_folder(drive, SERMON_FOLDER_ID)
+    videos = [f for f in files if is_sermon_video(f["name"], f.get("mimeType"))]
     videos.sort(key=lambda f: f["createdTime"])
 
     todo = [v for v in videos if v["id"] not in done_ids
             and on_or_after_cutoff(parse_date_from_filename(v["name"]), UPLOAD_SINCE)]
+    waiting = [v for v in todo if waits_for_board(v, files)]
+    for v in waiting:
+        print(f"{v['name']}: no soundboard audio yet — waiting up to {BOARD_WAIT_HOURS:g} h")
+    todo = [v for v in todo if v not in waiting]
     if not todo:
         print("No new sermon videos.")
         return 0
@@ -530,6 +550,15 @@ def main():
 
             print("  downloading from Drive…", flush=True)
             download(drive, video["id"], video_path)
+            import board_audio
+            synced, note = board_audio.from_drive(drive, SERMON_FOLDER_ID, video_path,
+                                                  service_date, tmp, list_folder, download,
+                                                  parse_date_from_filename)
+            if note:
+                print(f"  {note}", flush=True)
+            if synced != video_path:
+                os.remove(video_path)          # runners only have so much disk
+                video_path = synced
 
             print("  uploading to YouTube (private)…", flush=True)
             video_id = upload_to_youtube(youtube, video_path, title, description, tags)

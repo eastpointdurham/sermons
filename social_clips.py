@@ -758,6 +758,13 @@ def process(drive, sermon, brand, state):
             video = os.path.join(tmp, "sermon" + ext)
             log("  downloading…")
             download(drive, sermon["id"], video)
+            import board_audio
+            from upload_sermon import parse_date_from_filename
+            video, note = board_audio.from_drive(
+                drive, sermon.get("_folder") or os.environ.get("SERMON_FOLDER_ID", "1SCMlaqWua24gPPU-Z7yF19pisehp3xu_"),
+                video, service_date, tmp, list_folder, download, parse_date_from_filename)
+            if note:
+                log(f"  {note}")
 
         reused = (reuse_plan(drive, sermon, state, tmp)
                   if drive is not None and os.environ.get("SOCIAL_REUSE_PLAN") == "1" else None)

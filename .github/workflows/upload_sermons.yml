@@ -70,6 +70,8 @@ jobs:
           # Earlier sermons were uploaded by hand; don't duplicate them.
           # Lower this (or run manually) to back-fill a specific Sunday.
           UPLOAD_SINCE: ${{ vars.UPLOAD_SINCE || '2026-10-04' }}
+          BOARD_WAIT_HOURS: ${{ vars.BOARD_WAIT_HOURS || '2' }}
+          BOARD_ROOM_MIX: ${{ vars.BOARD_ROOM_MIX || '0.2' }}
           AUTO_THUMBNAILS: ${{ vars.AUTO_THUMBNAILS }}
           SERIES_GRAPHICS_FOLDER_ID: ${{ vars.SERIES_GRAPHICS_FOLDER_ID }}
           THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}

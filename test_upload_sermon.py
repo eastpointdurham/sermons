@@ -240,5 +240,25 @@ check("series resumes after a standalone", plan2[date(2025, 10, 11)]["series"],
 check("standalone description has no series line",
       "Series:" in U.build_description(plan2[date(2025, 10, 4)], date(2026, 10, 4)), False)
 
+# soundboard audio ---------------------------------------------------------
+import board_audio as BA                                       # noqa: E402
+from datetime import datetime as _dt, timezone as _tz          # noqa: E402
+_files = [{"name": "Sermon 10-11-26.mp4", "mimeType": "video/mp4", "createdTime": "2026-10-11T17:00:00Z"},
+          {"name": "Board 10-11-26.wav", "mimeType": "audio/wav", "createdTime": "2026-10-11T17:05:00Z"},
+          {"name": "Board 10-04-26.wav", "mimeType": "audio/wav"},
+          {"name": "Copy of Board 10-11-26.wav", "mimeType": "audio/wav"},
+          {"name": "notes 10-11-26.txt", "mimeType": "text/plain"}]
+check("board audio found by date", BA.find_board(_files, date(2026, 10, 11), U.parse_date_from_filename)["name"],
+      "Board 10-11-26.wav")
+check("no board audio for another week", BA.find_board(_files, date(2026, 9, 27), U.parse_date_from_filename), None)
+check("audio by extension", BA.is_board_audio("Sunday 10-11-26.M4A"), True)
+check("video is not board audio", BA.is_board_audio("Sermon 10-11-26.mp4", "video/mp4"), False)
+_new = {"name": "Sermon 10-18-26.mp4", "createdTime": "2026-10-18T17:00:00Z"}
+_soon, _later = _dt(2026, 10, 18, 18, 0, tzinfo=_tz.utc), _dt(2026, 10, 18, 20, 0, tzinfo=_tz.utc)
+check("fresh recording waits for its board audio", U.waits_for_board(_new, [_new], _soon), True)
+check("waits no longer than BOARD_WAIT_HOURS", U.waits_for_board(_new, [_new], _later), False)
+check("no wait once the board audio is there",
+      U.waits_for_board(_files[0], _files, _dt(2026, 10, 11, 17, 30, tzinfo=_tz.utc)), False)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
