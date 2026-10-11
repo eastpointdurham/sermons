@@ -260,5 +260,17 @@ check("waits no longer than BOARD_WAIT_HOURS", U.waits_for_board(_new, [_new], _
 check("no wait once the board audio is there",
       U.waits_for_board(_files[0], _files, _dt(2026, 10, 11, 17, 30, tzinfo=_tz.utc)), False)
 
+# trimming to the scripture reading -----------------------------------------
+import trim_start as TS                                         # noqa: E402
+_segs = [{"start": 0.0, "text": "Good morning"}, {"start": 95.4, "text": "Turn with me to Acts 3."},
+         {"start": 101.0, "text": "One day Peter and John..."}]
+check("segment number parsed", TS.parse_index("1", 3), 1)
+check("not found", TS.parse_index("-1", 3), None)
+check("out of range", TS.parse_index("7", 3), None)
+check("no number", TS.parse_index("I can't tell", 3), None)
+check("cut just before the lead-in", TS.cut_point(_segs, 1), 94.4)
+check("reading at the very start: no cut", TS.cut_point(_segs, 0), None)
+check("nothing found: no cut", TS.cut_point(_segs, None), None)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

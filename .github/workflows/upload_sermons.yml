@@ -21,6 +21,10 @@ on:
         description: "Plan only — print the metadata, upload nothing"
         required: false
         default: "false"
+      skip_board_wait:
+        description: "Don't wait for soundboard audio (none this week)"
+        required: false
+        default: "false"
 
 permissions:
   contents: write        # to commit uploaded_sermons.json
@@ -70,8 +74,10 @@ jobs:
           # Earlier sermons were uploaded by hand; don't duplicate them.
           # Lower this (or run manually) to back-fill a specific Sunday.
           UPLOAD_SINCE: ${{ vars.UPLOAD_SINCE || '2026-10-04' }}
-          BOARD_WAIT_HOURS: ${{ vars.BOARD_WAIT_HOURS || '2' }}
+          BOARD_WAIT_HOURS: ${{ github.event.inputs.skip_board_wait == 'true' && '0' || vars.BOARD_WAIT_HOURS || '2' }}
           BOARD_ROOM_MIX: ${{ vars.BOARD_ROOM_MIX || '0.2' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TRIM_TO_SCRIPTURE: ${{ vars.TRIM_TO_SCRIPTURE || '1' }}
           AUTO_THUMBNAILS: ${{ vars.AUTO_THUMBNAILS }}
           SERIES_GRAPHICS_FOLDER_ID: ${{ vars.SERIES_GRAPHICS_FOLDER_ID }}
           THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}

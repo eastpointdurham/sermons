@@ -560,6 +560,15 @@ def main():
                 os.remove(video_path)          # runners only have so much disk
                 video_path = synced
 
+            import trim_start
+            trimmed, note = trim_start.to_scripture(
+                video_path, entry["scripture"] if entry else "", tmp)
+            if note:
+                print(f"  {note}", flush=True)
+            if trimmed != video_path:
+                os.remove(video_path)
+                video_path = trimmed
+
             print("  uploading to YouTube (private)…", flush=True)
             video_id = upload_to_youtube(youtube, video_path, title, description, tags)
             print(f"  draft: https://studio.youtube.com/video/{video_id}/edit")
