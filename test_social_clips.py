@@ -522,5 +522,10 @@ for _st in ("bold", "editorial"):
     check(f"{_st}: captions stay put with no room", rd.caption_y(_lo, _br, _fd, "fill", _st) > 1200)
     check(f"{_st}: unknown head keeps default", rd.caption_y({"hook": "A hook"}, _br, _fd, "fill", _st) > 1200)
 
+import numpy as _np                                             # noqa: E402
+check("numpy numbers survive the plan JSON",
+      json.loads(json.dumps({"upscale": _np.float32(2.0), "n": _np.int64(3)}, default=sc.json_safe))
+      == {"upscale": 2.0, "n": 3})
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

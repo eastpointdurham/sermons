@@ -142,7 +142,7 @@ def load_state():
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2, ensure_ascii=False)
+        json.dump(state, f, indent=2, ensure_ascii=False, default=json_safe)
 
 
 # --------------------------------------------------------------------------
@@ -318,6 +318,13 @@ def sentences_from_words(words):
         s["end"] = words[s["b"]]["e"]
         s["text"] = " ".join(words[k]["w"] for k in range(s["a"], s["b"] + 1))
     return out
+
+
+def json_safe(o):
+    """json.dump default: numpy numbers (camera and audio stats) as plain ones."""
+    if hasattr(o, "item"):
+        return o.item()
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
 def fmt_t(t):
@@ -840,7 +847,7 @@ def process(drive, sermon, brand, state):
                      "sermon_big_idea": plan.get("sermon_big_idea"), "clips": public,
                      "generated": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         with open(os.path.join(out_dir, "plan.json"), "w") as f:
-            json.dump(plan_json, f, indent=2, ensure_ascii=False)
+            json.dump(plan_json, f, indent=2, ensure_ascii=False, default=json_safe)
         with open(os.path.join(out_dir, "plan.html"), "w") as f:
             f.write(plan_html(plan, clips, meta, service_date))
         with open(os.path.join(out_dir, "transcript_words.json"), "w") as f:
@@ -882,7 +889,7 @@ def process(drive, sermon, brand, state):
             p["drive_id"] = c["drive_id"]
             p["drive_ids"] = c["drive_ids"]
         with open(os.path.join(out_dir, "plan.json"), "w") as f:
-            json.dump(plan_json, f, indent=2, ensure_ascii=False)
+            json.dump(plan_json, f, indent=2, ensure_ascii=False, default=json_safe)
         upload(drive, os.path.join(out_dir, "plan.json"), "plan.json", folder, "application/json")
         upload(drive, os.path.join(out_dir, "transcript_words.json"), "transcript_words.json",
                folder, "application/json")

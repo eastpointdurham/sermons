@@ -230,7 +230,7 @@ def plan_path(video, start, dur):
     stats = {"head_top": round(float(np.percentile(head, 5)), 3),
              "detector": detector[0], "samples": len(samples), "with_faces": seen,
              "detections": len(obs), "crop_h_frac": round(float(crop_h_frac), 3),
-             "upscale": round(OUT_H / crop_h, 2), "x_range": round(float(np.ptp(cam)), 3),
+             "upscale": round(float(OUT_H / crop_h), 2), "x_range": round(float(np.ptp(cam)), 3),
              "mean_cx": round(float(np.mean(cx)) / w, 3)}
     stats["_samples"], stats["_track"] = samples, track     # for the camera check sheet
     return (cx, cy, crop_h), stats
