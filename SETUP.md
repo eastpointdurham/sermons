@@ -114,6 +114,23 @@ picture is copied, not re-encoded. A new recording waits up to `BOARD_WAIT_HOURS
 not clearly match, the camera audio is kept and the run log says why.
 `BOARD_AUDIO=off` switches it off.
 
+No board recording this week? Actions › **Upload Sermons to YouTube** › Run workflow
+with `skip_board_wait = true` uploads straight away with camera sound.
+
+## Trimming
+
+Every upload is cut to the sermon itself (`trim_start.py`): it opens on the reading
+("Now hear from the Gospel of Mark…", the book taken from the planning doc's
+scripture) and ends just after the "Amen" of the prayer that closes the message.
+The opening 20 and closing 12 minutes are transcribed and Claude picks the two
+sentences; the YouTube draft and the podcast MP3 both use the cut. Each end is judged
+on its own: when unsure, that end is left whole and the run log says why. The log's
+`trim:` line shows where both cuts landed. `TRIM_TO_SCRIPTURE=0` switches it off.
+
+To re-make a Sunday after a fix (or a new recording), run **Upload Sermons to
+YouTube** with `replace_date = YYYY-MM-DD`: the new draft and MP3 go up first, then
+the old draft is deleted and the old MP3 moved to Drive's trash.
+
 ## Thumbnails
 
 On (the `AUTO_THUMBNAILS` repository variable is `1`; set it to anything else to

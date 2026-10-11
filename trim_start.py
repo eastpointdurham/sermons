@@ -34,10 +34,11 @@ PROMPT = """Below are the opening minutes of a church sermon recording, transcri
 and numbered by sentence, with start times in seconds. The planned scripture passage \
 is: {scripture}.
 
-Find the sentence where the scripture reading begins. Include its lead-in if there \
-is one, such as "now hear from the Gospel of Mark", "turn with me to...", or "our \
-passage today is...", but not the end of a prayer before it ("...in Jesus' name. \
-Amen."). Ignore earlier passing mentions of scripture (announcements, prayers, song \
+Find the sentence where the scripture reading begins. At this church it is \
+usually introduced as "Now hear from {book_phrase}"; start on that sentence. If it \
+is worded differently ("turn with me to...", "our passage today is..."), start on \
+that lead-in instead, but never on the end of a prayer before it ("...in Jesus' \
+name. Amen."). Ignore earlier passing mentions of scripture (announcements, prayers, song \
 lyrics) unless the passage is read straight after.
 
 Answer with ONLY the sentence number, or -1 if the reading does not begin in these \
@@ -51,7 +52,7 @@ END_PROMPT = """Below are the closing minutes of a church sermon recording, tran
 and numbered by sentence, with start times in seconds.
 
 Find the sentence that ends the sermon: the one with the "Amen" that closes the \
-prayer after the message. Anything after it (a song, announcements, a benediction, \
+prayer at the end of the message. Anything after it (a song, announcements, a benediction, \
 an offering) is to be cut. If the preacher prays more than once, pick the prayer \
 that closes the message, not one in the middle of it.
 
@@ -103,9 +104,21 @@ def sentences(words):
              "text": " ".join(w["w"] for w in c)} for c in out]
 
 
+def book_phrase(scripture):
+    """How the reading is announced: "the Gospel of Mark", "the book of Acts"."""
+    m = re.match(r"\s*((?:[1-3]\s*)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)", scripture or "")
+    if not m:
+        return "the [book of the Bible]"
+    book = m.group(1).strip()
+    if book in ("Matthew", "Mark", "Luke", "John"):
+        return f"the Gospel of {book}"
+    return f"the book of {book}"
+
+
 def pick_segment(segments, scripture):
     """Index of the sentence where the reading starts, or None."""
-    return ask(segments, PROMPT, scripture=scripture or "not given")
+    return ask(segments, PROMPT, scripture=scripture or "not given",
+               book_phrase=book_phrase(scripture))
 
 
 def pick_end(segments):
