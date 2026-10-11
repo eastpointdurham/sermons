@@ -276,6 +276,11 @@ _w = [{"w": w, "s": float(i), "e": i + 0.5} for i, w in
       enumerate("be to you. Amen. Now hear from the Gospel of Mark.".split())]
 check("sentences split at Amen.", [x["text"] for x in TS.sentences(_w)],
       ["be to you.", "Amen.", "Now hear from the Gospel of Mark."])
+_close = [{"start": 2000.0, "end": 2004.0, "text": "In Jesus' name, Amen."},
+          {"start": 2004.5, "end": 2010.0, "text": "Let's stand and sing."}]
+check("end just after the Amen", TS.end_point(_close, 0, 2300.0), 2004.5)
+check("Amen at the very end: no cut", TS.end_point(_close, 0, 2010.0), None)
+check("no Amen found: no cut", TS.end_point(_close, None, 2300.0), None)
 check("sentence start time", TS.sentences(_w)[2]["start"], 4.0)
 check("reading at the very start: no cut", TS.cut_point(_segs, 0), None)
 check("nothing found: no cut", TS.cut_point(_segs, None), None)
