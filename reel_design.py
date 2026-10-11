@@ -244,14 +244,67 @@ def vertical_scrim(height, color_hex, top_alpha, bottom_alpha):
 
 HOOK_SIZE = 76
 HOOK_MAX_W = 900
+HOOK_SECONDS = 3.5       # (bold) the hook banner fades out after this, off the speaker's face
+HOOK_FADE = 0.6
 CAP_SIZE = 82
 CAP_MAX_W = 940
 
 
-def hook_block_height(hook, fonts_dir, scripture):
-    f = font("bold", HOOK_SIZE, fonts_dir)
-    lines = balanced_wrap(hook.upper(), f, HOOK_MAX_W)
-    return 150 + len(lines) * int(HOOK_SIZE * 1.02) + 70 + (54 if scripture else 0)
+HOOK_VARIANTS = (                # tried in order until the hook clears the speaker's head
+    {"mark": True, "scripture": True, "size": HOOK_SIZE},
+    {"mark": False, "scripture": True, "size": HOOK_SIZE},
+    {"mark": False, "scripture": False, "size": HOOK_SIZE},
+    {"mark": False, "scripture": False, "size": 62},
+)
+
+
+def draw_hook(canvas, clip, brand, fonts_dir, v):
+    """Draw the hook block (mark, title, brush stroke, scripture) per variant v
+    onto canvas, or just measure it when canvas is None. Returns its bottom y."""
+    white, sage = brand["offwhite"], brand["sage"]
+    d = ImageDraw.Draw(canvas) if canvas is not None else None
+    y = 92
+    if v["mark"]:
+        sb = sunburst(132, sage)
+        if canvas is not None:
+            canvas.alpha_composite(sb, ((W - sb.width) // 2, y))
+        y += sb.height + 34
+    f = font("bold", v["size"], fonts_dir)
+    lines = balanced_wrap(clip["hook"].upper(), f, HOOK_MAX_W)
+    lead = int(v["size"] * 1.02)
+    ascent, descent = f.getmetrics()
+    widest = 0
+    for i, line in enumerate(lines):
+        lw = text_width(line, f)
+        widest = max(widest, lw)
+        if d is not None:
+            d.text(((W - lw) / 2, y + ascent + i * lead), line, font=f, fill=hex_rgb(white),
+                   anchor="ls")
+    y += ascent + (len(lines) - 1) * lead + 26
+    br = brush_stroke(min(W - 120, widest * 1.08), 11, sage, seed=len(clip["hook"]))
+    if canvas is not None:
+        canvas.alpha_composite(br, (int((W - br.width) / 2), int(y)))
+    y += br.height
+    if v["scripture"] and clip.get("scripture"):
+        fs = font("medium", 30, fonts_dir)
+        ref = clip["scripture"].upper()
+        if d is not None:
+            draw_tracked(d, (W - text_width(ref, fs, 7)) / 2, y + 60, ref, fs, hex_rgb(white), 7)
+        y += 60 + fs.getmetrics()[1]
+    return y
+
+
+def hook_variant(clip, brand, fonts_dir, layout):
+    """The fullest hook block that ends above the speaker's head (fill layout,
+    when the camera reported where the head is); else the smallest one."""
+    head = clip.get("head_top")
+    if layout != "fill" or head is None:
+        return HOOK_VARIANTS[0]
+    limit = head * H - 30                           # clear of the hair
+    for v in HOOK_VARIANTS:
+        if draw_hook(None, clip, brand, fonts_dir, v) <= limit:
+            return v
+    return HOOK_VARIANTS[-1]
 
 
 def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
@@ -271,32 +324,7 @@ def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
         canvas.alpha_composite(vertical_scrim(720, ink, 235, 0), (0, 0))
         canvas.alpha_composite(vertical_scrim(760, ink, 0, 200), (0, H - 760))
 
-    y = 92
-    sb = sunburst(132, sage)
-    canvas.alpha_composite(sb, ((W - sb.width) // 2, y))
-    y += sb.height + 34
-
-    d = ImageDraw.Draw(canvas)
-    f = font("bold", HOOK_SIZE, fonts_dir)
-    lines = balanced_wrap(clip["hook"].upper(), f, HOOK_MAX_W)
-    lead = int(HOOK_SIZE * 1.02)
-    ascent = f.getmetrics()[0]
-    widest = 0
-    for i, line in enumerate(lines):
-        lw = text_width(line, f)
-        widest = max(widest, lw)
-        d.text(((W - lw) / 2, y + ascent + i * lead), line, font=f, fill=hex_rgb(white), anchor="ls")
-    y += ascent + (len(lines) - 1) * lead + 26
-
-    br = brush_stroke(min(W - 120, widest * 1.08), 11, sage, seed=len(clip["hook"]))
-    canvas.alpha_composite(br, (int((W - br.width) / 2), int(y)))
-    y += br.height + 30
-
-    if clip.get("scripture"):
-        fs = font("medium", 30, fonts_dir)
-        ref = clip["scripture"].upper()
-        tw = text_width(ref, fs, 7)
-        draw_tracked(d, (W - tw) / 2, y + 30, ref, fs, hex_rgb(white), 7)
+    draw_hook(canvas, clip, brand, fonts_dir, hook_variant(clip, brand, fonts_dir, layout))
 
     canvas.save(out_path)
     return out_path
@@ -380,7 +408,9 @@ def caption_y(clip, brand, fonts_dir, layout, style="bold"):
         top = EDITORIAL_TOP
     else:
         default, block = (1330 if layout == "fill" else 1560), 2 * int(CAP_SIZE * 1.3)
-        top = hook_block_height(clip.get("hook", ""), fonts_dir, clip.get("scripture")) + 20
+        top = (draw_hook(None, clip, brand, fonts_dir,
+                         hook_variant(clip, brand, fonts_dir, layout)) + 50
+               if clip.get("hook") else 120)
     head = clip.get("head_top")
     if layout != "fill" or head is None:
         return default

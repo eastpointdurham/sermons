@@ -23,7 +23,7 @@ Environment:
   SOCIAL_EXTRA_FOLDER_IDS      comma-separated extra folders to watch (optional)
   SOCIAL_DRAFTS_FOLDER_ID      parent folder for drafts (created under the
                                Sermons folder's parent if unset)
-  SOCIAL_MODEL                 Claude model (default claude-sonnet-4-5)
+  SOCIAL_MODEL                 Claude model (default claude-opus-5-5)
   WHISPER_MODEL                faster-whisper model (default small.en)
   SOCIAL_MAX_AGE_DAYS          only sermons this recent (default 10)
   SOCIAL_ONLY_FILE_ID          process exactly this Drive file (manual runs)
@@ -572,8 +572,12 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
     chunks = (caption_chunks(clip["words"], max_words=3, max_chars=16) if style == "editorial"
               else caption_chunks(clip["words"]))
     captions = rd.caption_track(clip, chunks, brand, FONTS_DIR, layout, workdir, style)
+    # bold: the hook banner (and its shade) fades out after a few seconds, so it
+    # never sits on the speaker's face for the whole reel
+    hook_out = (f",fade=t=out:st={rd.HOOK_SECONDS:.2f}:d={rd.HOOK_FADE:.2f}:alpha=1"
+                if style == "bold" else "")
     graph = (f"[0:v]{base},setsar=1,fps=30[v];"
-             f"[1:v]format=rgba,fade=t=in:st=0:d=0.45:alpha=1[o];"
+             f"[1:v]format=rgba,fade=t=in:st=0:d=0.45:alpha=1{hook_out}[o];"
              f"[v][o]overlay=0:0[vo];"
              f"[2:v]format=rgba,fps=30[c];"
              f"[vo][c]overlay=0:0:eof_action=repeat,trim=duration={dur:.3f},"

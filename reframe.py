@@ -24,7 +24,8 @@ MAX_UPSCALE = float(os.environ.get("SOCIAL_MAX_UPSCALE", "2.1"))
 WIDE_UPSCALE = float(os.environ.get("SOCIAL_WIDE_UPSCALE", "2.4"))
 LOW_FACE = 0.45           # face centre lower than this in the frame = a wide shot
 HEAD_ROOM = 0.30          # face centre sits this far down the frame
-DEAD_ZONE = 0.07          # of source width: small moves don't move the camera
+DEAD_ZONE = 0.12          # of the crop's width: small moves don't move the camera
+EASE = 0.12               # per frame, how fast the camera closes the gap once it moves
 
 
 def _probe(path):
@@ -171,6 +172,26 @@ def face_position(face_y, crop_h_frac):
     return (face_y - (cy - crop_h_frac / 2)) / crop_h_frac
 
 
+def follow(xs, crop_w_frac):
+    """Camera x per frame (fractions of source width) for a speaker at xs: hold
+    still inside the dead zone, then ease until he is centred again. The dead
+    zone scales with the crop: a tight crop is a narrow slice of the stage, and a
+    fixed share of the stage let him drift to the edge of the reel first."""
+    dead, settle = DEAD_ZONE * crop_w_frac, 0.15 * DEAD_ZONE * crop_w_frac
+    cam = np.empty(len(xs))
+    c, moving = xs[0], False
+    for i, x in enumerate(xs):
+        off = x - c
+        if abs(off) > dead:
+            moving = True
+        elif abs(off) < settle:
+            moving = False
+        if moving:
+            c += off * EASE                                  # ease toward him
+        cam[i] = c
+    return cam
+
+
 def plan_path(video, start, dur):
     """Per-frame (cx, cy, crop_h) in source pixels, plus stats for the log."""
     import cv2
@@ -208,17 +229,7 @@ def plan_path(video, start, dur):
     # he leaves it, pan until he is centred again (not just back to its edge,
     # which leaves a walking speaker trailing at the side of the frame)
     xs = _smooth(xs, int(fps * 0.3))                         # detection jitter
-    cam = np.empty(n_frames)
-    c, moving = xs[0], False
-    for i in range(n_frames):
-        off = xs[i] - c
-        if abs(off) > DEAD_ZONE:
-            moving = True
-        elif abs(off) < 0.01:
-            moving = False
-        if moving:
-            c += off * 0.08                                  # ease toward him
-        cam[i] = c
+    cam = follow(xs, crop_w / w)
     cam = _smooth(cam, int(fps * 0.4))
     y_cam = _smooth(ys, int(fps * 1.5))
 

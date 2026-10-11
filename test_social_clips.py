@@ -100,6 +100,17 @@ with tempfile.TemporaryDirectory() as tmp:
     check("overlay is 1080x1920 rgba", im.size == (1080, 1920) and im.mode == "RGBA")
     check("overlay top is drawn", im.getpixel((540, 60))[3] > 0)
     check("overlay middle is clear", im.getpixel((540, 900))[3] == 0)
+    close = dict(clip, head_top=0.23,               # this week's framing: head at 23%
+                 hook="Two hours on hold, asking one question", scripture="Mark 1:21-28")
+    check("close shot gets a smaller hook block; a wide shot keeps the full one",
+          rd.hook_variant(close, brand, fonts, "fill") != rd.HOOK_VARIANTS[0]
+          and rd.hook_variant(dict(close, head_top=0.4), brand, fonts, "fill") == rd.HOOK_VARIANTS[0])
+    ov2 = rd.make_overlay(close, brand, "fill", fonts, os.path.join(tmp, "o2.png"))
+    px, white = Image.open(ov2).load(), tuple(int(brand["offwhite"].lstrip("#")[i:i + 2], 16)
+                                               for i in (0, 2, 4))
+    rows = [y for y in range(0, 1920, 4)
+            if any(px[x, y][:3] == white and px[x, y][3] == 255 for x in range(100, 980, 6))]
+    check("hook text ends above the head", rows and max(rows) < 0.23 * 1920)
     lst = rd.caption_track(clip, sc.caption_chunks(clip["words"]), brand, fonts, "fill", tmp)
     body = open(lst).read().splitlines()
     durs = [float(l.split()[1]) for l in body if l.startswith("duration")]
@@ -507,6 +518,14 @@ xs = [c[0] for _, c in track]
 check("camera follows the preacher, not the front row", all(x < 0.75 for x in xs))
 check("camera ignores the one-frame false face", all(x > 0.2 for x in xs))
 check("camera keeps him across the gap", min(xs) < 0.35 and max(xs) > 0.65)
+import numpy as _np2                                            # noqa: E402
+_crop = 0.27                                    # this week's crop: ~27% of the stage wide
+_walk = _np2.concatenate([_np2.linspace(0.40, 0.47, 90), _np2.full(60, 0.47)])  # 3 s stroll
+_cam = RF.follow(_walk, _crop)
+check("camera keeps a slow walker well inside a tight crop",
+      _np2.max(_np2.abs(_walk - _cam)) < 0.2 * _crop)
+check("camera holds still for small sways",
+      _np2.ptp(RF.follow(0.5 + 0.01 * _np2.sin(_np2.arange(300) / 5), _crop)) == 0)
 check("no speaker when nobody is seen", RF.pick_speaker([(0, []), (6, [])]) == [])
 
 # wide shots: closer crop, captions in the space above the head
