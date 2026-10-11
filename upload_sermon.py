@@ -53,6 +53,9 @@ AUTO_THUMBNAILS   = os.environ.get("AUTO_THUMBNAILS") == "1"
 UPLOAD_SINCE      = os.environ.get("UPLOAD_SINCE", "")
 # A new recording waits this long for its soundboard audio (board_audio.py)
 BOARD_WAIT_HOURS  = float(os.environ.get("BOARD_WAIT_HOURS", "2"))
+# Re-make one Sunday's draft (e.g. after changing the trim): the new draft and
+# MP3 replace the old ones, which are deleted / trashed only once the new are up.
+REPLACE_DATE      = os.environ.get("REPLACE_DATE", "").strip()
 
 CHURCH_NAME = "Eastpoint Church"
 DEFAULT_PREACHER = "Peter Frey"
@@ -488,8 +491,25 @@ def save_state(state):
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
+def replace_old(drive, youtube, old, stem, keep_mp3_id):
+    """Delete the drafts and trash the MP3s that a re-upload replaces."""
+    for o in old:
+        youtube.videos().delete(id=o["video_id"]).execute()
+        print(f"  replaced draft {o['video_id']} deleted")
+    for f in list_folder(drive, PODCAST_FOLDER_ID):
+        if f["name"] == f"{stem}.mp3" and f["id"] != keep_mp3_id:
+            drive.files().update(fileId=f["id"], body={"trashed": True},
+                                 supportsAllDrives=True).execute()
+            print(f"  replaced mp3 {f['id']} moved to Drive trash")
+
+
 def main():
     state = load_state()
+    replaced = [s for s in state if REPLACE_DATE and s["service_date"] == REPLACE_DATE]
+    if REPLACE_DATE:
+        print(f"Re-making the {REPLACE_DATE} draft"
+              + (f" (replaces {', '.join(s['video_id'] for s in replaced)})" if replaced else ""))
+        state = [s for s in state if s not in replaced]
     done_ids = {s["drive_file_id"] for s in state}
 
     drive = drive_service()
@@ -499,6 +519,8 @@ def main():
 
     todo = [v for v in videos if v["id"] not in done_ids
             and on_or_after_cutoff(parse_date_from_filename(v["name"]), UPLOAD_SINCE)]
+    if REPLACE_DATE:
+        todo = [v for v in todo if parse_date_from_filename(v["name"]) == date.fromisoformat(REPLACE_DATE)]
     waiting = [v for v in todo if waits_for_board(v, files)]
     for v in waiting:
         print(f"{v['name']}: no soundboard audio yet — waiting up to {BOARD_WAIT_HOURS:g} h")
@@ -580,6 +602,8 @@ def main():
 
             up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
             print(f"  mp3 in Drive: {up.get('webViewLink')}")
+            if REPLACE_DATE:
+                replace_old(drive, youtube, replaced, stem, up["id"])
 
         if AUTO_THUMBNAILS:                    # paused: the team makes its own
             import thumbnail                   # never raises; logs and moves on

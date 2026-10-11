@@ -20,20 +20,21 @@ import subprocess
 SCAN_MINUTES = float(os.environ.get("TRIM_SCAN_MINUTES", "20"))
 WHISPER_MODEL = os.environ.get("TRIM_WHISPER_MODEL", "base.en")
 MODEL = os.environ.get("TRIM_MODEL", "claude-opus-5-5")
-LEAD_IN = 1.0               # seconds kept before the first word of the reading
+LEAD_IN = 0.4               # seconds kept before the first word of the reading
 MIN_CUT = 15.0              # don't bother trimming less than this
 
 PROMPT = """Below are the opening minutes of a church sermon recording, transcribed \
-and numbered by segment, with start times in seconds. The planned scripture passage \
+and numbered by sentence, with start times in seconds. The planned scripture passage \
 is: {scripture}.
 
-Find the segment where the scripture reading begins. Include its lead-in if there \
-is one, such as "turn with me to...", "our passage today is...", or "hear the word \
-of the Lord". Ignore earlier passing mentions of scripture (announcements, prayers, \
-song lyrics) unless the passage is read straight after.
+Find the sentence where the scripture reading begins. Include its lead-in if there \
+is one, such as "now hear from the Gospel of Mark", "turn with me to...", or "our \
+passage today is...", but not the end of a prayer before it ("...in Jesus' name. \
+Amen."). Ignore earlier passing mentions of scripture (announcements, prayers, song \
+lyrics) unless the passage is read straight after.
 
-Answer with ONLY the segment number, or -1 if the reading does not begin in these \
-segments.
+Answer with ONLY the sentence number, or -1 if the reading does not begin in these \
+sentences.
 
 <transcript>
 {transcript}
@@ -41,16 +42,36 @@ segments.
 
 
 def opening_segments(video_path, workdir):
-    """[{start, text}] for the first SCAN_MINUTES of the recording."""
+    """[{start, end, text}] per sentence for the first SCAN_MINUTES of the recording.
+    Sentences, not Whisper's segments: a segment can run "...Amen. Now hear from
+    the Gospel of Mark", and the cut belongs in the middle of it."""
     wav = os.path.join(workdir, "opening.wav")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-t", f"{SCAN_MINUTES * 60:.0f}",
                     "-i", video_path, "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
     from faster_whisper import WhisperModel
     model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(wav, language="en", vad_filter=True, beam_size=5)
-    out = [{"start": round(s.start, 2), "text": s.text.strip()} for s in segments if s.text.strip()]
+    segments, _ = model.transcribe(wav, language="en", vad_filter=True, beam_size=5,
+                                   word_timestamps=True)
+    words = [{"w": w.word.strip(), "s": w.start, "e": w.end}
+             for seg in segments for w in seg.words or [] if w.word.strip()]
     os.remove(wav)
-    return out
+    return sentences(words)
+
+
+def sentences(words):
+    """Group words into sentences (or ~40-word runs) with their time spans."""
+    out, cur = [], []
+    for i, w in enumerate(words):
+        cur.append(w)
+        ends = re.search(r"[.?!][\"'”’)]*$", w["w"])
+        gap = i + 1 < len(words) and words[i + 1]["s"] - w["e"] > 1.2
+        if ends or gap or len(cur) >= 40:
+            out.append(cur)
+            cur = []
+    if cur:
+        out.append(cur)
+    return [{"start": round(c[0]["s"], 2), "end": round(c[-1]["e"], 2),
+             "text": " ".join(w["w"] for w in c)} for c in out]
 
 
 def pick_segment(segments, scripture):
@@ -74,10 +95,13 @@ def parse_index(text, n):
 
 
 def cut_point(segments, i):
-    """Seconds to cut at for segment i, or None when it isn't worth cutting."""
+    """Seconds to cut at for sentence i, or None when it isn't worth cutting.
+    A little before its first word, but never back into the sentence before."""
     if i is None:
         return None
     t = max(0.0, segments[i]["start"] - LEAD_IN)
+    if i > 0:
+        t = max(t, segments[i - 1].get("end", 0.0))
     return t if t >= MIN_CUT else None
 
 

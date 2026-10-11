@@ -268,9 +268,38 @@ check("segment number parsed", TS.parse_index("1", 3), 1)
 check("not found", TS.parse_index("-1", 3), None)
 check("out of range", TS.parse_index("7", 3), None)
 check("no number", TS.parse_index("I can't tell", 3), None)
-check("cut just before the lead-in", TS.cut_point(_segs, 1), 94.4)
+check("cut just before the lead-in", round(TS.cut_point(_segs, 1), 2), 95.0)
+_amen = [{"start": 0.0, "end": 60.0, "text": "In Jesus' name. Amen."},
+         {"start": 60.2, "end": 63.0, "text": "Now hear from the Gospel of Mark."}]
+check("never cut back into the prayer", TS.cut_point(_amen, 1), 60.0)
+_w = [{"w": w, "s": float(i), "e": i + 0.5} for i, w in
+      enumerate("be to you. Amen. Now hear from the Gospel of Mark.".split())]
+check("sentences split at Amen.", [x["text"] for x in TS.sentences(_w)],
+      ["be to you.", "Amen.", "Now hear from the Gospel of Mark."])
+check("sentence start time", TS.sentences(_w)[2]["start"], 4.0)
 check("reading at the very start: no cut", TS.cut_point(_segs, 0), None)
 check("nothing found: no cut", TS.cut_point(_segs, None), None)
+
+# re-making a Sunday's draft ---------------------------------------------------
+class _Call:
+    def __init__(self, log, what): self.log, self.what = log, what
+    def execute(self): self.log.append(self.what); return {}
+class _YT:
+    def __init__(self, log): self.log = log
+    def videos(self): return self
+    def delete(self, id): return _Call(self.log, ("delete", id))
+class _Drive:
+    def __init__(self, log): self.log = log
+    def files(self): return self
+    def update(self, fileId, body, supportsAllDrives): return _Call(self.log, ("trash", fileId))
+_log, _orig = [], U.list_folder
+U.list_folder = lambda d, f: [{"id": "old", "name": "Sermon 2026-10-11.mp3"},
+                              {"id": "new", "name": "Sermon 2026-10-11.mp3"},
+                              {"id": "x", "name": "Sermon 2026-10-04.mp3"}]
+U.replace_old(_Drive(_log), _YT(_log), [{"video_id": "fTG0lckbwLE"}], "Sermon 2026-10-11", "new")
+U.list_folder = _orig
+check("replace deletes the old draft and trashes only the old MP3", _log,
+      [("delete", "fTG0lckbwLE"), ("trash", "old")])
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
