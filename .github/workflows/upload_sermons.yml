@@ -44,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main       # a queued run must see the upload log as it is now
 
       - name: Install ffmpeg
         run: |
@@ -92,12 +94,14 @@ jobs:
         run: python upload_sermon.py
 
       - name: Commit upload log
-        if: github.event.inputs.dry_run != 'true'
+        # also after a failure: a draft that went up must be on record
+        if: always() && github.event.inputs.dry_run != 'true'
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add uploaded_sermons.json
           git diff --staged --quiet && echo "No changes." || (
             git commit -m "Record sermon upload $(date +'%Y-%m-%d')" &&
+            git pull --rebase &&
             git push
           )

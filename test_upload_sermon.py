@@ -281,6 +281,8 @@ _close = [{"start": 2000.0, "end": 2004.0, "text": "In Jesus' name, Amen."},
 check("end just after the Amen", TS.end_point(_close, 0, 2300.0), 2004.5)
 check("Amen at the very end: no cut", TS.end_point(_close, 0, 2010.0), None)
 check("no Amen found: no cut", TS.end_point(_close, None, 2300.0), None)
+check("snap to the keyframe nearest the cut", TS.snap_start(60.0, 59.8, 60.6, [50.0, 60.5, 70.0]), 60.5)
+check("no keyframe in the gap: re-encode", TS.snap_start(60.0, 59.8, 60.6, [50.0, 70.0]), None)
 check("sentence start time", TS.sentences(_w)[2]["start"], 4.0)
 check("reading at the very start: no cut", TS.cut_point(_segs, 0), None)
 check("nothing found: no cut", TS.cut_point(_segs, None), None)

@@ -493,9 +493,15 @@ def save_state(state):
 
 def replace_old(drive, youtube, old, stem, keep_mp3_id):
     """Delete the drafts and trash the MP3s that a re-upload replaces."""
+    from googleapiclient.errors import HttpError
     for o in old:
-        youtube.videos().delete(id=o["video_id"]).execute()
-        print(f"  replaced draft {o['video_id']} deleted")
+        try:
+            youtube.videos().delete(id=o["video_id"]).execute()
+            print(f"  replaced draft {o['video_id']} deleted")
+        except HttpError as e:
+            if e.resp.status != 404:
+                raise
+            print(f"  replaced draft {o['video_id']} was already gone")
     for f in list_folder(drive, PODCAST_FOLDER_ID):
         if f["name"] == f"{stem}.mp3" and f["id"] != keep_mp3_id:
             drive.files().update(fileId=f["id"], body={"trashed": True},
@@ -505,11 +511,6 @@ def replace_old(drive, youtube, old, stem, keep_mp3_id):
 
 def main():
     state = load_state()
-    replaced = [s for s in state if REPLACE_DATE and s["service_date"] == REPLACE_DATE]
-    if REPLACE_DATE:
-        print(f"Re-making the {REPLACE_DATE} draft"
-              + (f" (replaces {', '.join(s['video_id'] for s in replaced)})" if replaced else ""))
-        state = [s for s in state if s not in replaced]
     done_ids = {s["drive_file_id"] for s in state}
 
     drive = drive_service()
@@ -519,8 +520,18 @@ def main():
 
     todo = [v for v in videos if v["id"] not in done_ids
             and on_or_after_cutoff(parse_date_from_filename(v["name"]), UPLOAD_SINCE)]
+    replaced = []
     if REPLACE_DATE:
-        todo = [v for v in todo if parse_date_from_filename(v["name"]) == date.fromisoformat(REPLACE_DATE)]
+        # one recording only: the newest for that Sunday, and only its own old
+        # record(s) go (a re-exported file has a new id: then the date's records)
+        same_day = [v for v in videos
+                    if parse_date_from_filename(v["name"]) == date.fromisoformat(REPLACE_DATE)]
+        todo = same_day[-1:]
+        if todo:
+            replaced = ([s for s in state if s["drive_file_id"] == todo[0]["id"]]
+                        or [s for s in state if s["service_date"] == REPLACE_DATE])
+        print(f"Re-making the {REPLACE_DATE} draft"
+              + (f" (replaces {', '.join(s['video_id'] for s in replaced)})" if replaced else ""))
     waiting = [v for v in todo if waits_for_board(v, files)]
     for v in waiting:
         print(f"{v['name']}: no soundboard audio yet — waiting up to {BOARD_WAIT_HOURS:g} h")
@@ -594,6 +605,15 @@ def main():
             print("  uploading to YouTube (private)…", flush=True)
             video_id = upload_to_youtube(youtube, video_path, title, description, tags)
             print(f"  draft: https://studio.youtube.com/video/{video_id}/edit")
+            state = [s for s in state if s not in replaced]
+            state.append({                     # on record now, whatever fails next
+                "drive_file_id": video["id"],
+                "drive_file_name": video["name"],
+                "service_date": service_date.isoformat(),
+                "video_id": video_id,
+                "title": title,
+            })
+            save_state(state)
 
             print("  extracting audio…", flush=True)
             extract_audio(video_path, mp3_path)
@@ -602,22 +622,14 @@ def main():
 
             up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
             print(f"  mp3 in Drive: {up.get('webViewLink')}")
-            if REPLACE_DATE:
-                replace_old(drive, youtube, replaced, stem, up["id"])
 
         if AUTO_THUMBNAILS:                    # paused: the team makes its own
             import thumbnail                   # never raises; logs and moves on
             thumbnail.add_thumbnail(drive, youtube, entry, service_date, video_id,
                                     SERMON_FOLDER_ID)
 
-        state.append({
-            "drive_file_id": video["id"],
-            "drive_file_name": video["name"],
-            "service_date": service_date.isoformat(),
-            "video_id": video_id,
-            "title": title,
-        })
-        save_state(state)
+        if replaced:                           # last: the new draft is on record first
+            replace_old(drive, youtube, replaced, stem, up["id"])
 
     remaining = len(todo) - min(len(todo), MAX_PER_RUN)
     if remaining:

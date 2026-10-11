@@ -153,12 +153,34 @@ def end_point(segments, i, total):
     return t if total - t >= MIN_CUT else None
 
 
-def trim(video_path, start, out_path, end=None):
+def keyframes(path, lo, hi):
+    """Video keyframe times between lo and hi seconds."""
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                          "-read_intervals", f"{max(0.0, lo - 1):.3f}%{hi + 1:.3f}",
+                          "-skip_frame", "nokey", "-show_entries", "frame=pts_time",
+                          "-of", "csv=p=0", path], capture_output=True, text=True, check=True)
+    ts = [float(x) for x in re.findall(r"[\d.]+", out.stdout)]
+    return sorted(t for t in ts if lo <= t <= hi)
+
+
+def snap_start(target, lo, hi, kfs):
+    """A stream copy can only start on a keyframe: the one between lo (end of the
+    sentence before) and hi (first word of the reading) nearest the target, or
+    None when there is none and the opening has to be re-encoded."""
+    inside = [t for t in kfs if lo <= t <= hi]
+    return min(inside, key=lambda t: abs(t - target)) if inside else None
+
+
+def trim(video_path, start, out_path, end=None, reencode=False):
+    """Copy from start to end. Copying starts on the keyframe at or before start,
+    so callers snap start to one first, or re-encode (frame-exact, slower)."""
     cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-i", video_path]
     if end is not None:
         cmd += ["-t", f"{end - start:.3f}"]
-    subprocess.run(cmd + ["-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero",
-                          out_path], check=True)
+    codec = (["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac",
+              "-b:a", "192k"] if reencode else ["-c", "copy"])
+    subprocess.run(cmd + ["-map", "0:v:0", "-map", "0:a?"] + codec
+                   + ["-avoid_negative_ts", "make_zero", out_path], check=True)
 
 
 def _clock(t):
@@ -171,20 +193,30 @@ def to_scripture(video_path, scripture, workdir):
     "Amen", or the original path when nothing should be cut. Never raises."""
     if os.environ.get("TRIM_TO_SCRIPTURE", "1") == "0":
         return video_path, ""
-    notes, start, end = [], 0.0, None
+    notes, start, end, total, reencode = [], 0.0, None, None, False
     try:
         total = duration(video_path)
         segments = opening_segments(video_path, workdir)
         i = pick_segment(segments, scripture) if segments else None
         start = cut_point(segments, i) or 0.0
         if start:
-            notes.append(f"cut the first {_clock(start)}; opens on \"{segments[i]['text'][:80]}\"")
+            lo = segments[i - 1]["end"] if i > 0 else 0.0
+            kf = snap_start(start, lo, segments[i]["start"],
+                            keyframes(video_path, lo, segments[i]["start"]))
+            if kf is None:
+                reencode = True                # no keyframe in the gap: cut exactly
+            else:
+                start = kf
+            notes.append(f"cut the first {_clock(start)}; opens on \"{segments[i]['text'][:80]}\""
+                         + (" (re-encoded for an exact cut)" if reencode else ""))
         else:
             notes.append("start left whole (" + ("no reading found" if i is None else
                          f"reading starts at {segments[i]['start']:.0f}s already") + ")")
     except Exception as e:                      # a whole video beats no video
         notes.append(f"start left whole (failed: {e})")
     try:
+        if total is None:
+            raise RuntimeError("no duration")
         tail_from = max(start, total - END_SCAN_MINUTES * 60)
         closing = opening_segments(video_path, workdir, tail_from, END_SCAN_MINUTES)
         j = pick_end(closing) if closing else None
@@ -201,7 +233,7 @@ def to_scripture(video_path, scripture, workdir):
         return video_path, "trim: " + "; ".join(notes)
     try:
         out = os.path.join(workdir, "trimmed" + os.path.splitext(video_path)[1])
-        trim(video_path, start, out, end)
+        trim(video_path, start, out, end, reencode)
         return out, "trim: " + "; ".join(notes)
     except Exception as e:
         return video_path, f"trim: failed ({e}); video left whole"
