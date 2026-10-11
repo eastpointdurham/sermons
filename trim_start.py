@@ -19,7 +19,7 @@ import subprocess
 
 SCAN_MINUTES = float(os.environ.get("TRIM_SCAN_MINUTES", "20"))
 WHISPER_MODEL = os.environ.get("TRIM_WHISPER_MODEL", "base.en")
-MODEL = os.environ.get("TRIM_MODEL", "claude-sonnet-5-5")
+MODEL = os.environ.get("TRIM_MODEL", "claude-opus-5-5")
 LEAD_IN = 1.0               # seconds kept before the first word of the reading
 MIN_CUT = 15.0              # don't bother trimming less than this
 
@@ -58,7 +58,7 @@ def pick_segment(segments, scripture):
     import anthropic
     transcript = "\n".join(f"[{i}] ({s['start']:.0f}s) {s['text']}" for i, s in enumerate(segments))
     msg = anthropic.Anthropic().messages.create(
-        model=MODEL, max_tokens=20,
+        model=MODEL, max_tokens=4000, output_config={"effort": "low"},
         messages=[{"role": "user", "content": PROMPT.format(
             scripture=scripture or "not given", transcript=transcript)}])
     text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")

@@ -50,7 +50,7 @@ STRATEGY_FILE = os.path.join(HERE, "social", "strategy.md")
 BRAND_FILE = os.path.join(HERE, "social", "brand.json")
 FONTS_DIR = os.path.join(HERE, "social", "fonts")
 
-MODEL = os.environ.get("SOCIAL_MODEL", "claude-sonnet-4-5")
+MODEL = os.environ.get("SOCIAL_MODEL", "claude-opus-5-5")
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small.en")
 MAX_AGE_DAYS = int(os.environ.get("SOCIAL_MAX_AGE_DAYS", "10"))
 LAYOUT = os.environ.get("SOCIAL_LAYOUT", "fill")
@@ -385,10 +385,17 @@ def select_moments(sentences, meta, service_date):
         transcript=transcript, n_min=2, n_max=3, min_len=MIN_LEN, max_len=MAX_LEN,
         youtube_link=f"https://youtu.be/{yt}" if yt else "link in bio")
     client = anthropic.Anthropic()
-    msg = client.messages.create(model=MODEL, max_tokens=8000,
-                                 messages=[{"role": "user", "content": prompt}])
-    text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
-    return parse_plan(text)
+    for attempt in range(2):                  # one more try if the JSON comes back broken
+        msg = client.messages.create(model=MODEL, max_tokens=16000,
+                                     output_config={"effort": "high"},
+                                     messages=[{"role": "user", "content": prompt}])
+        text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        try:
+            return parse_plan(text)
+        except ValueError as e:               # json.JSONDecodeError is a ValueError
+            if attempt:
+                raise
+            log(f"  clip plan was not valid JSON ({e}); asking again")
 
 
 def parse_plan(text):
