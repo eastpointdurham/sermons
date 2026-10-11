@@ -28,7 +28,8 @@ WHISPER_MODEL = os.environ.get("TRIM_WHISPER_MODEL", "base.en")
 MODEL = os.environ.get("TRIM_MODEL", "claude-opus-5-5")
 LEAD_IN = 0.4               # seconds kept before the first word of the reading
 LEAD_OUT = 0.8              # seconds kept after the closing "Amen"
-MIN_CUT = 15.0              # don't bother trimming less than this
+MIN_CUT = 15.0              # don't bother trimming less than this off the start
+MIN_END_CUT = 2.0           # at the end, anything after the Amen goes
 
 PROMPT = """Below are the opening minutes of a church sermon recording, transcribed \
 and numbered by sentence, with start times in seconds. The planned scripture passage \
@@ -163,7 +164,7 @@ def end_point(segments, i, total):
     t = segments[i]["end"] + LEAD_OUT
     if i + 1 < len(segments):
         t = min(t, segments[i + 1]["start"])
-    return t if total - t >= MIN_CUT else None
+    return t if total - t >= MIN_END_CUT else None
 
 
 def keyframes(path, lo, hi):
@@ -238,7 +239,7 @@ def to_scripture(video_path, scripture, workdir):
             notes.append(f"cut the last {_clock(total - end)}; ends on \"{closing[j]['text'][-80:]}\"")
         else:
             notes.append("end left whole (" + ("no closing Amen found" if j is None else
-                         "Amen is at the very end already") + ")")
+                         f"Amen is within {MIN_END_CUT:g}s of the end already") + ")")
     except Exception as e:
         end = None
         notes.append(f"end left whole (failed: {e})")
