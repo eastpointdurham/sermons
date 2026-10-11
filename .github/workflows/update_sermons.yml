@@ -71,5 +71,6 @@ jobs:
           git add index.html sermons.json private_sermons.json
           git diff --staged --quiet && echo "No changes." || (
             git commit -m "Update sermon archive $(date +'%Y-%m-%d')" &&
+            git pull --rebase &&
             git push
           )
