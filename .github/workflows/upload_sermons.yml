@@ -40,7 +40,7 @@ concurrency:
 jobs:
   upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180     # colour grading takes about real time
 
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +84,8 @@ jobs:
           BOARD_ROOM_MIX: ${{ vars.BOARD_ROOM_MIX || '0.2' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TRIM_TO_SCRIPTURE: ${{ vars.TRIM_TO_SCRIPTURE || '1' }}
+          SERMON_GRADE: ${{ vars.SERMON_GRADE || 'on' }}
+          SERMON_AUDIO: ${{ vars.SERMON_AUDIO || 'on' }}
           AUTO_THUMBNAILS: ${{ vars.AUTO_THUMBNAILS }}
           SERIES_GRAPHICS_FOLDER_ID: ${{ vars.SERIES_GRAPHICS_FOLDER_ID }}
           THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}

@@ -441,12 +441,57 @@ def upload_to_youtube(youtube, path, title, description, tags):
     return response["id"]
 
 
-def extract_audio(video_path, mp3_path):
-    """Podcast MP3: hiss and rumble cleaned (audio.py), then podcast loudness
-    (-16 LUFS, -1.5 dBTP), mono 96 kbps."""
-    import audio
-    clean, info = audio.filters(video_path)
-    print(f"  audio: {info}", flush=True)
+def finish_video(video_path, workdir):
+    """(path, notes, audio_cleaned): the sermon as it goes to YouTube, with
+      - the picture graded like the reels (grade.py: white balance, levels, a
+        gentle filmic look, measured once over the whole sermon so nothing
+        flickers), re-encoded near-lossless (SERMON_GRADE=off skips it), and
+      - the sound cleaned like the podcast and reels (audio.py: rumble and hiss
+        out, pauses kept from swelling) and levelled to YouTube's -14 LUFS
+        (SERMON_AUDIO=off skips it).
+    Both in one encode. Grading costs about real time on the runner (a 40 min
+    sermon, ~40 min); the sound alone is quick. The original path comes back
+    when both are off or the encode fails. Never raises."""
+    off = ("off", "0", "no")
+    do_grade = os.environ.get("SERMON_GRADE", "on").lower() not in off
+    do_audio = os.environ.get("SERMON_AUDIO", "on").lower() not in off
+    notes, lut, clean = [], "", None
+    try:
+        if do_grade:
+            import grade
+            import trim_start
+            dur = trim_start.duration(video_path)
+            lut, info = grade.grade_filter(video_path, 0.0, dur, workdir, "sermon_grade")
+            notes.append(f"colour: {info}" if lut else f"colour: left as shot ({info.get('grade')})")
+        if do_audio:
+            import audio
+            clean, info = audio.filters(video_path)
+            notes.append(f"sound: {info}")
+        if not lut and clean is None:
+            return video_path, notes, False
+        chain = ",".join(f for f in (clean, "loudnorm=I=-14:TP=-1.5:LRA=11",
+                                     "aresample=48000") if f)
+        out = os.path.join(workdir, "finished.mov")
+        video = (["-vf", f"{lut},format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
+                  "-crf", "16", "-profile:v", "high"] if lut else ["-c:v", "copy"])
+        sound = (["-af", chain, "-c:a", "aac", "-b:a", "256k"] if clean is not None
+                 else ["-c:a", "copy"])
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video_path,
+                        "-map", "0:v:0", "-map", "0:a?"] + video + sound + [out], check=True)
+        return out, notes, clean is not None
+    except Exception as e:                       # the sermon as shot beats no sermon
+        return video_path, notes + [f"finishing failed ({e}); uploading as shot"], False
+
+
+def extract_audio(video_path, mp3_path, clean_first=True):
+    """Podcast MP3: hiss and rumble cleaned (audio.py) unless the video's sound
+    already was (finish_video), then podcast loudness (-16 LUFS, -1.5 dBTP),
+    mono 96 kbps."""
+    clean = ""
+    if clean_first:
+        import audio
+        clean, info = audio.filters(video_path)
+        print(f"  audio: {info}", flush=True)
     chain = ",".join(f for f in (clean, "loudnorm=I=-16:TP=-1.5:LRA=11", "aresample=44100") if f)
     subprocess.run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -602,6 +647,14 @@ def main():
                 os.remove(video_path)
                 video_path = trimmed
 
+            print("  colour and sound…", flush=True)
+            finished, notes, sound_cleaned = finish_video(video_path, tmp)
+            for note in notes:
+                print(f"  {note}", flush=True)
+            if finished != video_path:
+                os.remove(video_path)
+                video_path = finished
+
             print("  uploading to YouTube (private)…", flush=True)
             video_id = upload_to_youtube(youtube, video_path, title, description, tags)
             print(f"  draft: https://studio.youtube.com/video/{video_id}/edit")
@@ -616,7 +669,7 @@ def main():
             save_state(state)
 
             print("  extracting audio…", flush=True)
-            extract_audio(video_path, mp3_path)
+            extract_audio(video_path, mp3_path, clean_first=not sound_cleaned)
             print(f"  audio {os.path.getsize(mp3_path) / 1e6:.1f} MB", flush=True)
             os.remove(video_path)          # runners only have so much disk
 

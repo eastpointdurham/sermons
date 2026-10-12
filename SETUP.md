@@ -127,6 +127,17 @@ sentences; the YouTube draft and the podcast MP3 both use the cut. Each end is j
 on its own: when unsure, that end is left whole and the run log says why. The log's
 `trim:` line shows where both cuts landed. `TRIM_TO_SCRIPTURE=0` switches it off.
 
+## Colour and sound (YouTube)
+
+After the trim, the YouTube video gets the same finishing as the reels, in one
+encode: the reels' colour grade (`grade.py`, measured once over the whole sermon)
+and the podcast's sound cleanup (`audio.py`), levelled to YouTube's -14 LUFS. The
+podcast MP3 is made from that cleaned sound (only its loudness changes, to -16
+LUFS). Grading re-encodes the picture and takes about real time on the runner (a
+40-minute sermon adds ~40 minutes); the run log's `colour:` and `sound:` lines show
+what was done. `SERMON_GRADE=off` / `SERMON_AUDIO=off` (repository variables)
+switch either off; if finishing fails, the sermon goes up as shot.
+
 To re-make a Sunday after a fix (or a new recording), run **Upload Sermons to
 YouTube** with `replace_date = YYYY-MM-DD`: the new draft and MP3 go up first, then
 the old draft is deleted and the old MP3 moved to Drive's trash.
