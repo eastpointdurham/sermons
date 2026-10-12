@@ -319,8 +319,8 @@ _os.environ["SERMON_GRADE"], _os.environ["SERMON_AUDIO"] = "off", "off"
 check("finishing off: the video goes up as shot", U.finish_video("x.mov", "."), ("x.mov", [], False))
 _os.environ["SERMON_GRADE"], _os.environ["SERMON_AUDIO"] = "on", "off"
 _p, _n, _c = U.finish_video("/nonexistent/x.mov", ".")
-check("a finishing failure never loses the sermon", (_p, _c) == ("/nonexistent/x.mov", False))
-check("...and says why", any("as shot" in n or "skipped" in n for n in _n))
+check("a finishing failure never loses the sermon", (_p, _c), ("/nonexistent/x.mov", False))
+check("...and says why", any("as shot" in n or "skipped" in n for n in _n), True)
 del _os.environ["SERMON_GRADE"], _os.environ["SERMON_AUDIO"]
 
 print(f"\n{PASS} passed, {FAIL} failed")
