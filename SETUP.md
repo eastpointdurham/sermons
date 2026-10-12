@@ -135,7 +135,10 @@ and the podcast's sound cleanup (`audio.py`), levelled to YouTube's -14 LUFS. Th
 podcast MP3 is made from that cleaned sound (only its loudness changes, to -16
 LUFS). Grading re-encodes the picture and takes about real time on the runner (a
 40-minute sermon adds ~40 minutes); the run log's `colour:` and `sound:` lines show
-what was done. `SERMON_GRADE=off` / `SERMON_AUDIO=off` (repository variables)
+what was done. Quality: same size and frame rate as shot, picture at CRF 12 (visually
+lossless; YouTube re-encodes everything to 8-bit for viewers anyway), sound as
+uncompressed 24-bit PCM. When there is a soundboard recording it is synced in first,
+so it is the board sound that gets cleaned and levelled. `SERMON_GRADE=off` / `SERMON_AUDIO=off` (repository variables)
 switch either off; if finishing fails, the sermon goes up as shot.
 
 To re-make a Sunday after a fix (or a new recording), run **Upload Sermons to

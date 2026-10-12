@@ -449,7 +449,8 @@ def finish_video(video_path, workdir):
       - the sound cleaned like the podcast and reels (audio.py: rumble and hiss
         out, pauses kept from swelling) and levelled to YouTube's -14 LUFS
         (SERMON_AUDIO=off skips it).
-    Both in one encode. Grading costs about real time on the runner (a 40 min
+    Both in one encode, near-lossless (see below); the board recording, when
+    there is one, was already swapped in (board_audio.py) before this. Grading costs about real time on the runner (a 40 min
     sermon, ~40 min); the sound alone is quick. The original path comes back
     when both are off or the encode fails. Never raises."""
     off = ("off", "0", "no")
@@ -472,9 +473,13 @@ def finish_video(video_path, workdir):
         chain = ",".join(f for f in (clean, "loudnorm=I=-14:TP=-1.5:LRA=11",
                                      "aresample=48000") if f)
         out = os.path.join(workdir, "finished.mov")
+        # quality: CRF 12 is visually lossless with headroom (measured: an
+        # identity grade at CRF 12 is within 1.5 dB of a lossless 8-bit 4:2:0
+        # copy, which is what YouTube streams anyway); same size and frame rate
+        # as shot; the sound stays uncompressed (24-bit PCM) for YouTube to encode
         video = (["-vf", f"{lut},format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                  "-crf", "16", "-profile:v", "high"] if lut else ["-c:v", "copy"])
-        sound = (["-af", chain, "-c:a", "aac", "-b:a", "256k"] if clean is not None
+                  "-crf", "12", "-profile:v", "high"] if lut else ["-c:v", "copy"])
+        sound = (["-af", chain, "-c:a", "pcm_s24le"] if clean is not None
                  else ["-c:a", "copy"])
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video_path,
                         "-map", "0:v:0", "-map", "0:a?"] + video + sound + [out], check=True)
