@@ -4,3 +4,4 @@ new_sermons.json
 social/fonts/
 social_out/
 Claude outputs/
+.DS_Store
