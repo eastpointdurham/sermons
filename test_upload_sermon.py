@@ -326,5 +326,56 @@ check("a finishing failure never loses the sermon", (_p, _c), ("/nonexistent/x.m
 check("...and says why", any("as shot" in n or "skipped" in n for n in _n), True)
 del _os.environ["SERMON_GRADE"], _os.environ["SERMON_AUDIO"]
 
+# repairing a Sunday whose run died after the YouTube upload -----------------
+import sys as _sys                                              # noqa: E402
+import types as _types                                          # noqa: E402
+_calls = []
+_podcast = []
+_rec = {"drive_file_id": "vid18", "drive_file_name": "Sermon 10-18-26.mov",
+        "service_date": "2026-10-18", "video_id": "R860yNxB8Q8", "title": "Jesus Goes Viral"}
+_vids = [{"id": "vid18", "name": "Sermon 10-18-26.mov"}]
+
+
+def _up(drive, path, name, folder, mime):
+    _calls.append("upload " + name)
+    return {"webViewLink": "link"}
+
+
+def _prep(drive, video, entry, d, path, tmp):
+    _calls.append("prepare " + video["id"])
+    open(path, "w").close()
+    return path
+
+
+def _mp3(src, dst, clean_first=True):
+    _calls.append(f"mp3 clean={clean_first}")
+    open(dst, "w").write("x")
+
+
+_saved = {k: getattr(U, k) for k in ("prepare_source", "extract_audio", "upload_file",
+                                      "list_folder", "read_planning_doc", "docs_service",
+                                      "youtube_service", "AUTO_THUMBNAILS", "REPAIR_DATE")}
+_sys.modules["thumbnail"] = _types.SimpleNamespace(
+    add_thumbnail=lambda drive, yt, entry, d, vid, folder: _calls.append("thumbnail " + vid))
+U.prepare_source, U.extract_audio, U.upload_file = _prep, _mp3, _up
+U.list_folder = lambda drive, folder: list(_podcast)
+U.read_planning_doc, U.docs_service, U.youtube_service = (lambda docs: {}), (lambda: None), (lambda: None)
+U.AUTO_THUMBNAILS, U.REPAIR_DATE = True, "2026-10-18"
+
+check("repair makes the missing MP3 and thumbnail, never a new draft",
+      (U.repair(None, [_rec], _vids), _calls),
+      (0, ["prepare vid18", "mp3 clean=True", "upload Sermon 2026-10-18.mp3",
+           "thumbnail R860yNxB8Q8"]))
+_calls.clear()
+_podcast.append({"name": "Sermon 2026-10-18.mp3"})
+check("repair keeps an MP3 already in Drive", (U.repair(None, [_rec], _vids), _calls),
+      (0, ["thumbnail R860yNxB8Q8"]))
+_calls.clear()
+U.REPAIR_DATE = "2026-10-25"
+check("repair with no draft on record does nothing", (U.repair(None, [_rec], _vids), _calls), (1, []))
+for _k, _v in _saved.items():
+    setattr(U, _k, _v)
+del _sys.modules["thumbnail"]
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

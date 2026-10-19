@@ -25,6 +25,10 @@ on:
         description: "Re-make this Sunday's draft and MP3, replacing the old ones (YYYY-MM-DD)"
         required: false
         default: ""
+      repair_date:
+        description: "Only make this Sunday's missing MP3 and thumbnail; keep its draft (YYYY-MM-DD)"
+        required: false
+        default: ""
       skip_board_wait:
         description: "Don't wait for soundboard audio (none this week)"
         required: false
@@ -91,6 +95,7 @@ jobs:
           THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}
           THUMBNAILS_FOLDER_ID: ${{ vars.THUMBNAILS_FOLDER_ID }}
           REPLACE_DATE: ${{ github.event.inputs.replace_date }}
+          REPAIR_DATE: ${{ github.event.inputs.repair_date }}
           MAX_PER_RUN: ${{ github.event.inputs.max_per_run || '1' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: python upload_sermon.py

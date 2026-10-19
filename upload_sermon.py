@@ -18,6 +18,8 @@ Environment:
   PLANNING_DOC_START_YEAR                      year of the doc's first dated line (default 2025)
   MAX_PER_RUN                                  default 1
   DRY_RUN                                      "1" to plan without uploading
+  REPAIR_DATE                                  YYYY-MM-DD: only make that Sunday's missing
+                                               MP3 and thumbnail; its draft is kept
 """
 
 import json
@@ -56,6 +58,7 @@ BOARD_WAIT_HOURS  = float(os.environ.get("BOARD_WAIT_HOURS", "2"))
 # Re-make one Sunday's draft (e.g. after changing the trim): the new draft and
 # MP3 replace the old ones, which are deleted / trashed only once the new are up.
 REPLACE_DATE      = os.environ.get("REPLACE_DATE", "").strip()
+REPAIR_DATE       = os.environ.get("REPAIR_DATE", "").strip()
 NET_RETRIES       = 5          # dropped connections (e.g. SSLEOFError) retry with backoff
 
 CHURCH_NAME = "Eastpoint Church"
@@ -516,6 +519,74 @@ def upload_file(drive, path, name, folder_id, mime):
 
 # --------------------------------------------------------------------------
 
+def prepare_source(drive, video, entry, service_date, video_path, tmp):
+    """Download the recording, swap in the board audio and trim to the
+    scripture reading: the source for both the YouTube video and the MP3."""
+    print("  downloading from Drive…", flush=True)
+    download(drive, video["id"], video_path)
+    import board_audio
+    synced, note = board_audio.from_drive(drive, SERMON_FOLDER_ID, video_path,
+                                          service_date, tmp, list_folder, download,
+                                          parse_date_from_filename)
+    if note:
+        print(f"  {note}", flush=True)
+    if synced != video_path:
+        os.remove(video_path)          # runners only have so much disk
+        video_path = synced
+
+    import trim_start
+    trimmed, note = trim_start.to_scripture(
+        video_path, entry["scripture"] if entry else "", tmp)
+    if note:
+        print(f"  {note}", flush=True)
+    if trimmed != video_path:
+        os.remove(video_path)
+        video_path = trimmed
+    return video_path
+
+
+def repair(drive, state, videos):
+    """REPAIR_DATE: make the podcast MP3 and thumbnail for a Sunday that is
+    already on YouTube (e.g. after the run died just past the upload). The
+    draft itself is left alone; an MP3 already in Drive is kept."""
+    record = next((s for s in reversed(state) if s["service_date"] == REPAIR_DATE), None)
+    if not record:
+        print(f"No uploaded draft on record for {REPAIR_DATE}; nothing to repair.")
+        return 1
+    video = next((v for v in videos if v["id"] == record["drive_file_id"]), None)
+    if not video:
+        print(f"{record['drive_file_name']} is no longer in the Sermons folder.")
+        return 1
+    service_date = date.fromisoformat(REPAIR_DATE)
+    entry = read_planning_doc(docs_service()).get(service_date)
+    stem = f"Sermon {service_date.isoformat()}"
+    print(f"Repairing {REPAIR_DATE}: {record['title']} "
+          f"(draft {record['video_id']} kept as it is)")
+
+    if any(f["name"] == f"{stem}.mp3" for f in list_folder(drive, PODCAST_FOLDER_ID)):
+        print(f"  {stem}.mp3 is already in Drive; kept")
+    elif DRY_RUN:
+        print(f"  [dry run] would make {stem}.mp3")
+    else:
+        with tempfile.TemporaryDirectory() as tmp:
+            ext = os.path.splitext(video["name"])[1] or ".mp4"
+            video_path = prepare_source(drive, video, entry, service_date,
+                                        os.path.join(tmp, "input" + ext), tmp)
+            mp3_path = os.path.join(tmp, f"{stem}.mp3")
+            print("  extracting audio…", flush=True)
+            extract_audio(video_path, mp3_path, clean_first=True)
+            print(f"  audio {os.path.getsize(mp3_path) / 1e6:.1f} MB", flush=True)
+            os.remove(video_path)
+            up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
+            print(f"  mp3 in Drive: {up.get('webViewLink')}")
+
+    if AUTO_THUMBNAILS and not DRY_RUN:
+        import thumbnail                       # never raises; logs and moves on
+        thumbnail.add_thumbnail(drive, youtube_service(), entry, service_date,
+                                record["video_id"], SERMON_FOLDER_ID)
+    return 0
+
+
 def waits_for_board(video, files, now=None):
     """True while a new recording should wait for its soundboard audio."""
     import board_audio
@@ -571,6 +642,9 @@ def main():
     files = list_folder(drive, SERMON_FOLDER_ID)
     videos = [f for f in files if is_sermon_video(f["name"], f.get("mimeType"))]
     videos.sort(key=lambda f: f["createdTime"])
+
+    if REPAIR_DATE:
+        return repair(drive, state, videos)
 
     todo = [v for v in videos if v["id"] not in done_ids
             and on_or_after_cutoff(parse_date_from_filename(v["name"]), UPLOAD_SINCE)]
@@ -635,26 +709,7 @@ def main():
             video_path = os.path.join(tmp, "input" + ext)
             mp3_path = os.path.join(tmp, f"{stem}.mp3")
 
-            print("  downloading from Drive…", flush=True)
-            download(drive, video["id"], video_path)
-            import board_audio
-            synced, note = board_audio.from_drive(drive, SERMON_FOLDER_ID, video_path,
-                                                  service_date, tmp, list_folder, download,
-                                                  parse_date_from_filename)
-            if note:
-                print(f"  {note}", flush=True)
-            if synced != video_path:
-                os.remove(video_path)          # runners only have so much disk
-                video_path = synced
-
-            import trim_start
-            trimmed, note = trim_start.to_scripture(
-                video_path, entry["scripture"] if entry else "", tmp)
-            if note:
-                print(f"  {note}", flush=True)
-            if trimmed != video_path:
-                os.remove(video_path)
-                video_path = trimmed
+            video_path = prepare_source(drive, video, entry, service_date, video_path, tmp)
 
             print("  colour and sound…", flush=True)
             finished, notes, sound_cleaned = finish_video(video_path, tmp)
