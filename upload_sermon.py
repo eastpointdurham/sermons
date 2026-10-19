@@ -35,6 +35,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 STATE_FILE = "uploaded_sermons.json"
+SEEN_FILE = "seen_sermons.json"     # first sighting of recordings with a wrong camera clock
 
 CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
@@ -587,21 +588,43 @@ def repair(drive, state, videos):
     return 0
 
 
-def waits_for_board(video, files, now=None):
+def added_time(video, seen, now):
+    """When the recording reached Drive. Its createdTime comes from the camera's
+    clock, so one in the future (a camera set to 2034) is not trusted: then it
+    is when this script first saw the file (seen: drive id -> ISO time, kept in
+    SEEN_FILE and filled in here)."""
+    try:
+        made = datetime.fromisoformat(video["createdTime"].replace("Z", "+00:00"))
+        if (made - now).total_seconds() <= 3600:
+            return made
+    except (KeyError, ValueError, AttributeError):
+        pass
+    first = seen.setdefault(video.get("id", video["name"]), now.isoformat())
+    return datetime.fromisoformat(first)
+
+
+def waits_for_board(video, files, now=None, seen=None):
     """True while a new recording should wait for its soundboard audio."""
     import board_audio
     if BOARD_WAIT_HOURS <= 0 or board_audio.find_board(
             files, parse_date_from_filename(video["name"]), parse_date_from_filename):
         return False
-    try:
-        made = datetime.fromisoformat(video["createdTime"].replace("Z", "+00:00"))
-    except (KeyError, ValueError):
-        return False
     now = now or datetime.now(timezone.utc)
-    age = (now - made).total_seconds()
-    if age < -3600:     # a camera clock set wrong (e.g. 2034) would mean waiting forever
-        return False
-    return age < BOARD_WAIT_HOURS * 3600
+    made = added_time(video, {} if seen is None else seen, now)
+    return (now - made).total_seconds() < BOARD_WAIT_HOURS * 3600
+
+
+def load_seen():
+    if os.path.exists(SEEN_FILE):
+        with open(SEEN_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_seen(seen):
+    with open(SEEN_FILE, "w", encoding="utf-8") as f:
+        json.dump(seen, f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 def load_state():
@@ -641,7 +664,11 @@ def main():
     drive = drive_service()
     files = list_folder(drive, SERMON_FOLDER_ID)
     videos = [f for f in files if is_sermon_video(f["name"], f.get("mimeType"))]
-    videos.sort(key=lambda f: f["createdTime"])
+    now, seen = datetime.now(timezone.utc), load_seen()
+    videos.sort(key=lambda f: (parse_date_from_filename(f["name"]), added_time(f, seen, now)))
+    live = {v["id"] for v in videos} - done_ids
+    seen = {k: t for k, t in seen.items() if k in live}    # forget uploaded / removed files
+    save_seen(seen)
 
     if REPAIR_DATE:
         return repair(drive, state, videos)
@@ -660,7 +687,7 @@ def main():
                         or [s for s in state if s["service_date"] == REPLACE_DATE])
         print(f"Re-making the {REPLACE_DATE} draft"
               + (f" (replaces {', '.join(s['video_id'] for s in replaced)})" if replaced else ""))
-    waiting = [v for v in todo if waits_for_board(v, files)]
+    waiting = [v for v in todo if waits_for_board(v, files, now, seen)]
     for v in waiting:
         print(f"{v['name']}: no soundboard audio yet — waiting up to {BOARD_WAIT_HOURS:g} h")
     todo = [v for v in todo if v not in waiting]

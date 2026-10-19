@@ -253,13 +253,27 @@ check("board audio found by date", BA.find_board(_files, date(2026, 10, 11), U.p
 check("no board audio for another week", BA.find_board(_files, date(2026, 9, 27), U.parse_date_from_filename), None)
 check("audio by extension", BA.is_board_audio("Sunday 10-11-26.M4A"), True)
 check("video is not board audio", BA.is_board_audio("Sermon 10-11-26.mp4", "video/mp4"), False)
+from datetime import timedelta as _td                            # noqa: E402
 _new = {"name": "Sermon 10-18-26.mp4", "createdTime": "2026-10-18T17:00:00Z"}
 _soon, _later = _dt(2026, 10, 18, 18, 0, tzinfo=_tz.utc), _dt(2026, 10, 18, 20, 0, tzinfo=_tz.utc)
 check("fresh recording waits for its board audio", U.waits_for_board(_new, [_new], _soon), True)
 check("waits no longer than BOARD_WAIT_HOURS", U.waits_for_board(_new, [_new], _later), False)
-_future = {"name": "Sermon 10-18-26.mov", "createdTime": "2034-03-26T11:21:18.600Z"}
-check("a wrong camera clock (created in 2034) does not wait forever",
-      U.waits_for_board(_future, [_future], _soon), False)
+_future = {"id": "f18", "name": "Sermon 10-18-26.mov", "createdTime": "2034-03-26T11:21:18.600Z"}
+_seen = {}
+check("a wrong camera clock (created in 2034) still waits, from when it was first seen",
+      U.waits_for_board(_future, [_future], _soon, _seen), True)
+check("...and the first sighting is remembered", _seen, {"f18": _soon.isoformat()})
+check("...so it stops waiting BOARD_WAIT_HOURS later",
+      U.waits_for_board(_future, [_future], _soon + _td(hours=2, minutes=1), _seen), False)
+check("a believable created time is used as it is",
+      U.added_time(_new, {}, _soon).isoformat(), "2026-10-18T17:00:00+00:00")
+_old = {"id": "f11", "name": "Sermon 10-11-26.mov", "createdTime": "2034-03-27T05:33:34Z"}
+_reexport = {"id": "r18", "name": "Sermon 10-18-26 edit.mov", "createdTime": "2026-10-19T09:00:00Z"}
+_seen = {}
+_order = sorted([_future, _reexport, _old],
+                key=lambda f: (U.parse_date_from_filename(f["name"]), U.added_time(f, _seen, _soon)))
+check("recordings go in Sunday order whatever the camera clock says, and a re-export "
+      "counts as newer than the camera file", [f["id"] for f in _order], ["f11", "f18", "r18"])
 check("no wait once the board audio is there",
       U.waits_for_board(_files[0], _files, _dt(2026, 10, 11, 17, 30, tzinfo=_tz.utc)), False)
 
