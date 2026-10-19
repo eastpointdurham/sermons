@@ -56,6 +56,7 @@ BOARD_WAIT_HOURS  = float(os.environ.get("BOARD_WAIT_HOURS", "2"))
 # Re-make one Sunday's draft (e.g. after changing the trim): the new draft and
 # MP3 replace the old ones, which are deleted / trashed only once the new are up.
 REPLACE_DATE      = os.environ.get("REPLACE_DATE", "").strip()
+NET_RETRIES       = 5          # dropped connections (e.g. SSLEOFError) retry with backoff
 
 CHURCH_NAME = "Eastpoint Church"
 DEFAULT_PREACHER = "Peter Frey"
@@ -404,7 +405,7 @@ def download(drive, file_id, dest):
         dl = MediaIoBaseDownload(fh, req, chunksize=64 * 1024 * 1024)
         done, last = False, -1
         while not done:
-            status, done = dl.next_chunk()
+            status, done = dl.next_chunk(num_retries=NET_RETRIES)
             if status:
                 pct = int(status.progress() * 100)
                 if pct >= last + 20:
@@ -432,7 +433,7 @@ def upload_to_youtube(youtube, path, title, description, tags):
 
     response, last = None, -1
     while response is None:
-        status, response = request.next_chunk()
+        status, response = request.next_chunk(num_retries=NET_RETRIES)
         if status:
             pct = int(status.progress() * 100)
             if pct >= last + 20:
@@ -510,7 +511,7 @@ def upload_file(drive, path, name, folder_id, mime):
         body={"name": name, "parents": [folder_id]},
         media_body=MediaFileUpload(path, mimetype=mime, resumable=True),
         fields="id,webViewLink", supportsAllDrives=True,
-    ).execute()
+    ).execute(num_retries=NET_RETRIES)
 
 
 # --------------------------------------------------------------------------
