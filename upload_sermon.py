@@ -526,7 +526,10 @@ def waits_for_board(video, files, now=None):
     except (KeyError, ValueError):
         return False
     now = now or datetime.now(timezone.utc)
-    return (now - made).total_seconds() < BOARD_WAIT_HOURS * 3600
+    age = (now - made).total_seconds()
+    if age < -3600:     # a camera clock set wrong (e.g. 2034) would mean waiting forever
+        return False
+    return age < BOARD_WAIT_HOURS * 3600
 
 
 def load_state():

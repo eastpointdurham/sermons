@@ -257,6 +257,9 @@ _new = {"name": "Sermon 10-18-26.mp4", "createdTime": "2026-10-18T17:00:00Z"}
 _soon, _later = _dt(2026, 10, 18, 18, 0, tzinfo=_tz.utc), _dt(2026, 10, 18, 20, 0, tzinfo=_tz.utc)
 check("fresh recording waits for its board audio", U.waits_for_board(_new, [_new], _soon), True)
 check("waits no longer than BOARD_WAIT_HOURS", U.waits_for_board(_new, [_new], _later), False)
+_future = {"name": "Sermon 10-18-26.mov", "createdTime": "2034-03-26T11:21:18.600Z"}
+check("a wrong camera clock (created in 2034) does not wait forever",
+      U.waits_for_board(_future, [_future], _soon), False)
 check("no wait once the board audio is there",
       U.waits_for_board(_files[0], _files, _dt(2026, 10, 11, 17, 30, tzinfo=_tz.utc)), False)
 
