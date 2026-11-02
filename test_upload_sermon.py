@@ -368,12 +368,18 @@ def _mp3(src, dst, clean_first=True):
 
 _saved = {k: getattr(U, k) for k in ("prepare_source", "extract_audio", "upload_file",
                                       "list_folder", "read_planning_doc", "docs_service",
-                                      "youtube_service", "AUTO_THUMBNAILS", "REPAIR_DATE")}
+                                      "youtube_service", "retitle", "save_state",
+                                      "AUTO_THUMBNAILS", "REPAIR_DATE")}
+_plan = {date(2026, 10, 18): {"title": "Jesus Goes Viral", "scripture": "Mark 1:35–45",
+                              "series": "", "preacher": "Peter Frey"}}
+_rec["title"] = U.build_title(_plan[date(2026, 10, 18)], date(2026, 10, 18))
 _sys.modules["thumbnail"] = _types.SimpleNamespace(
     add_thumbnail=lambda drive, yt, entry, d, vid, folder: _calls.append("thumbnail " + vid))
 U.prepare_source, U.extract_audio, U.upload_file = _prep, _mp3, _up
 U.list_folder = lambda drive, folder: list(_podcast)
-U.read_planning_doc, U.docs_service, U.youtube_service = (lambda docs: {}), (lambda: None), (lambda: None)
+U.read_planning_doc, U.docs_service, U.youtube_service = (lambda docs: _plan), (lambda: None), (lambda: None)
+U.retitle = lambda yt, vid, title: _calls.append(f"retitle {vid}: {title.split(' | ')[0]}")
+U.save_state = lambda state: None
 U.AUTO_THUMBNAILS, U.REPAIR_DATE = True, "2026-10-18"
 
 check("repair makes the missing MP3 and thumbnail, never a new draft",
@@ -384,6 +390,12 @@ _calls.clear()
 _podcast.append({"name": "Sermon 2026-10-18.mp3"})
 check("repair keeps an MP3 already in Drive", (U.repair(None, [_rec], _vids), _calls),
       (0, ["thumbnail R860yNxB8Q8"]))
+_calls.clear()
+_plan[date(2026, 10, 18)]["title"] = "A Title Added Later"
+check("repair retitles the draft when the planning doc's line changed",
+      (U.repair(None, [_rec], _vids), _calls),
+      (0, ["retitle R860yNxB8Q8: A Title Added Later", "thumbnail R860yNxB8Q8"]))
+check("...and records the new title", _rec["title"].split(" | ")[0], "A Title Added Later")
 _calls.clear()
 U.REPAIR_DATE = "2026-10-25"
 check("repair with no draft on record does nothing", (U.repair(None, [_rec], _vids), _calls), (1, []))

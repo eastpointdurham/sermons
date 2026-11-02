@@ -18,8 +18,9 @@ Environment:
   PLANNING_DOC_START_YEAR                      year of the doc's first dated line (default 2025)
   MAX_PER_RUN                                  default 1
   DRY_RUN                                      "1" to plan without uploading
-  REPAIR_DATE                                  YYYY-MM-DD: only make that Sunday's missing
-                                               MP3 and thumbnail; its draft is kept
+  REPAIR_DATE                                  YYYY-MM-DD: that Sunday's missing MP3, title
+                                               from the planning doc, and thumbnail; the
+                                               video itself is kept
 """
 
 import json
@@ -547,9 +548,10 @@ def prepare_source(drive, video, entry, service_date, video_path, tmp):
 
 
 def repair(drive, state, videos):
-    """REPAIR_DATE: make the podcast MP3 and thumbnail for a Sunday that is
-    already on YouTube (e.g. after the run died just past the upload). The
-    draft itself is left alone; an MP3 already in Drive is kept."""
+    """REPAIR_DATE: for a Sunday already on YouTube, make a missing podcast MP3,
+    retitle the draft from the planning doc if its line changed (e.g. a title
+    added after the upload), and remake the thumbnail. The video itself is
+    left alone; an MP3 already in Drive is kept."""
     record = next((s for s in reversed(state) if s["service_date"] == REPAIR_DATE), None)
     if not record:
         print(f"No uploaded draft on record for {REPAIR_DATE}; nothing to repair.")
@@ -581,11 +583,35 @@ def repair(drive, state, videos):
             up = upload_file(drive, mp3_path, f"{stem}.mp3", PODCAST_FOLDER_ID, "audio/mpeg")
             print(f"  mp3 in Drive: {up.get('webViewLink')}")
 
+    title = build_title(entry, service_date)
+    if title == record["title"]:
+        print("  title already matches the planning doc")
+    elif DRY_RUN:
+        print(f"  [dry run] would retitle the draft: {title}")
+    else:
+        retitle(youtube_service(), record["video_id"], title)
+        record["title"] = title
+        save_state(state)
+        print(f"  draft retitled: {title}")
+
     if AUTO_THUMBNAILS and not DRY_RUN:
         import thumbnail                       # never raises; logs and moves on
         thumbnail.add_thumbnail(drive, youtube_service(), entry, service_date,
                                 record["video_id"], SERMON_FOLDER_ID)
     return 0
+
+
+def retitle(youtube, video_id, title):
+    """Set a draft's title, keeping its description, tags, category and privacy
+    (videos.update replaces the whole snippet, so the rest is sent back)."""
+    snip = youtube.videos().list(part="snippet", id=video_id).execute()["items"][0]["snippet"]
+    youtube.videos().update(part="snippet", body={"id": video_id, "snippet": {
+        "title": title,
+        "categoryId": snip.get("categoryId", YOUTUBE_CATEGORY_ID),
+        "description": snip.get("description", ""),
+        "tags": snip.get("tags", []),
+        "defaultLanguage": snip.get("defaultLanguage", "en"),
+    }}).execute(num_retries=NET_RETRIES)
 
 
 def added_time(video, seen, now):

@@ -26,7 +26,7 @@ on:
         required: false
         default: ""
       repair_date:
-        description: "Only make this Sunday's missing MP3 and thumbnail; keep its draft (YYYY-MM-DD)"
+        description: "Fix this Sunday's draft without re-uploading: missing MP3, title from the planning doc, thumbnail (YYYY-MM-DD)"
         required: false
         default: ""
       skip_board_wait:
