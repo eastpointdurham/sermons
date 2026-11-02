@@ -8,13 +8,22 @@ lifts the pauses most, so the hiss swells between sentences. So, before the
 loudness step, measured on the clip itself:
 
   1. high-pass at 75 Hz: rumble (HVAC, stage floor, handling) out
-  2. RNNoise (ffmpeg arnndn), a small neural network trained to keep speech and
-     drop everything else; it takes hiss out UNDER the voice too, which a
-     pause-based filter cannot. Its model (~300 KB) is fetched at run time.
-  3. a light FFT pass for what hiss remains, tracking the measured floor
-  4. a gentle downward expander in the pauses (at most -12 dB), so they don't
-     swell; words are never gated
-Without the model (no network), step 2 is skipped and step 3 works harder.
+  2. a clean recording (hiss 35 dB or more under the voice, as the Sunday camera
+     audio is): a light FFT pass tracking the measured floor, nothing more
+  3. a noisy one: RNNoise (ffmpeg arnndn), a small neural network trained to
+     keep speech and drop everything else, so it takes hiss out UNDER the voice
+     too. Its model (~300 KB) is fetched at run time; without it (no network)
+     a firmer FFT pass stands in.
+  4. a gentle downward expander in the pauses, so they don't swell; words are
+     never gated
+
+RNNoise is kept for noisy recordings only, and mixed with 40% of the original,
+because it also takes the soft ends of words (trailing consonants, a dropped
+syllable) and any music under the voice. Measured on the 2026-11-01 sermon,
+the old chain (RNNoise at 0.9, then FFT, then the expander on top) cut the
+softest 10% of word endings by about 7 dB and the pauses by 31 dB; the clean
+path costs them under 1 dB. RNNoise followed by FFT compounds, so the noisy
+path has no FFT pass.
 
 AUDIO_CLEAN=off leaves the audio as it was.
 """
@@ -32,7 +41,9 @@ FRAME = 800                 # 50 ms at 16 kHz
 RNN_MODEL = os.environ.get("AUDIO_RNN_MODEL", "std")
 RNN_URL = "https://raw.githubusercontent.com/richardpl/arnndn-models/master/{}.rnnn"
 RNN_DIR = os.path.join(os.path.expanduser("~"), ".cache", "eastpoint")
-RNN_MIX = 0.9               # keep a trace of the original: no "underwater" voice
+RNN_MIX = 0.6               # 40% original: keeps word endings and music under the voice
+RNN_BELOW_SNR = 35          # dB voice over hiss: only a recording noisier than this gets RNNoise
+CLEAN_NR = 10               # dB, the light FFT pass for a clean recording
 
 
 def rnn_model():
@@ -74,16 +85,20 @@ def clean_filter(levels, model=None):
     floor, speech = levels["floor"], levels["speech"]
     snr = speech - floor
     if floor > -80 and snr > 12:                      # there is hiss to take out, and a voice above it
-        if model:
+        thr = 10 ** ((floor + 0.4 * snr) / 20)       # well below speech, above the hiss
+        if model and snr < RNN_BELOW_SNR:
             parts.append(f"arnndn=m='{model}':mix={RNN_MIX}")
-            nr = MIN_NR                                # just the residue
-        else:
-            # after loudness normalisation even a quiet hiss is audible on a phone,
-            # so the reduction does not ease off for "clean" recordings
-            nr = int(np.clip(MAX_NR - max(0.0, snr - 40) * 0.2, MIN_NR + 4, MAX_NR))
+            # RNNoise already lowered the word endings: a softer, slower expander
+            # so it doesn't push them down a second time
+            parts.append(f"agate=threshold={thr:.6f}:ratio=2:range=0.5:"
+                         f"attack=20:release=500:knee=4")
+            return ",".join(parts)
+        if snr >= RNN_BELOW_SNR:
+            nr = CLEAN_NR
+        else:                                          # noisy, and no model to hand
+            nr = int(np.clip(MAX_NR - max(0.0, snr - 25) * 0.4, MIN_NR + 4, MAX_NR))
         nf = int(np.clip(floor, -80, -20))
         parts.append(f"afftdn=nr={nr}:nf={nf}:tn=1")
-        thr = 10 ** ((floor + 0.4 * snr) / 20)       # well below speech, above the hiss
         parts.append(f"agate=threshold={thr:.6f}:ratio=2:range={GATE_RANGE}:"
                      f"attack=10:release=300:knee=4")
     return ",".join(parts)

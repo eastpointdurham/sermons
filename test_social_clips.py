@@ -362,10 +362,15 @@ with tempfile.TemporaryDirectory() as _t:
     _ff = subprocess.run(["ffmpeg", "-v", "error", "-i", _w, "-af", _chain, "-f", "null", "-"],
                          capture_output=True, text=True)
     check("ffmpeg accepts the audio chain", _ff.returncode == 0)
-_rnn = AU.clean_filter({"floor": -62.0, "speech": -19.0}, "/m/std.rnnn")
-check("neural denoise under the voice", "arnndn=m='/m/std.rnnn'" in _rnn and _rnn.index("arnndn") < _rnn.index("afftdn"))
-check("with the model, FFT only takes the residue", f"nr={AU.MIN_NR}:" in _rnn)
-check("no model: FFT works harder", _nr(-65, -16) >= AU.MIN_NR + 4)
+_rnn = AU.clean_filter({"floor": -50.0, "speech": -20.0}, "/m/std.rnnn")
+check("noisy recording: neural denoise under the voice", "arnndn=m='/m/std.rnnn'" in _rnn)
+check("...mixed with the original, so word endings and music survive", f"mix={AU.RNN_MIX}" in _rnn and AU.RNN_MIX <= 0.6)
+check("...with no FFT pass stacked on top (the two compound)", "afftdn" not in _rnn)
+check("...and a softer expander after it", "range=0.5" in _rnn and "release=500" in _rnn)
+_clean = AU.clean_filter({"floor": -75.7, "speech": -29.2}, "/m/std.rnnn")     # the 2026-11-01 sermon
+check("clean recording: no neural denoise even with the model", "arnndn" not in _clean)
+check("...just a light FFT pass", f"nr={AU.CLEAN_NR}:" in _clean)
+check("no model, noisy recording: FFT works harder", _nr(-50, -20) >= AU.MIN_NR + 4)
 _m = AU.rnn_model() if os.path.exists(os.path.join(AU.RNN_DIR, f"{AU.RNN_MODEL}.rnnn")) else None
 if _m:
     with tempfile.TemporaryDirectory() as _t:
