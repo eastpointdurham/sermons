@@ -411,6 +411,7 @@ with tempfile.TemporaryDirectory() as _t:
 
 # thumbnails -------------------------------------------------------------------
 import thumbnail as T
+from PIL import ImageChops
 from datetime import date as _date
 series = "ALL IN: Following Jesus in the Gospel of Mark"
 check("series key", T.series_key(series) == "all in")
@@ -464,6 +465,15 @@ with tempfile.TemporaryDirectory() as tmp:
     check("no face found is not an error", T.face_box(_Im.new("RGB", (400, 300), (0, 0, 0))) is None)
     check("series look uses the art's ground",
           Image.open(out).convert("RGB").getpixel((20, 700))[0] > 120)
+    _g = dict(entry, preacher="Riley Davis", guest=True)
+    _pk = {"photo_path": os.path.join(tmp, "p.jpg"), "art_path": os.path.join(tmp, "art.png")}
+    T.render(entry, d1, brand, fonts, os.path.join(tmp, "h.jpg"), **_pk)
+    T.render(_g, d1, brand, fonts, os.path.join(tmp, "g.jpg"), **_pk)
+    _diff = ImageChops.difference(Image.open(os.path.join(tmp, "h.jpg")).convert("RGB"),
+                                  Image.open(os.path.join(tmp, "g.jpg")).convert("RGB")).getbbox()
+    check("guest week: a label above the title, on the left", bool(_diff) and _diff[0] < 120 and _diff[3] < 620)
+    T.render(_g, d1, brand, fonts, os.path.join(tmp, "gn.jpg"))
+    check("guest label in the no-photo look too", os.path.exists(os.path.join(tmp, "gn.jpg")))
     T.render(None, d1, brand, fonts, os.path.join(tmp, "n.jpg"))
     check("thumbnail without a planning entry", os.path.exists(os.path.join(tmp, "n.jpg")))
 

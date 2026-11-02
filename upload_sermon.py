@@ -202,6 +202,12 @@ def extract_preacher(raw_line):
     return DEFAULT_PREACHER
 
 
+def is_guest(raw_line):
+    """A guest week, as the planning doc marks it ("Guest Preacher Riley Davis").
+    A staff fill-in ("Kevin Preaching") is not one."""
+    return bool(re.search(r"\bguest\b", raw_line.replace("*", ""), re.I))
+
+
 def normalise_scripture(s):
     """Match the archive's existing convention: en-dash in verse ranges."""
     return re.sub(r"(\d)\s*-\s*(\d)", "\\1\u2013\\2", s).strip()
@@ -285,6 +291,7 @@ def read_planning_doc(docs, doc_id=None):
                 # "(standalone)" on the line: a one-off inside a series' run
                 "series": "" if re.search(r"\bstand-?\s?alone\b", text, re.I) else series,
                 "preacher": extract_preacher(text),
+                "guest": is_guest(text),
             }
     return entries
 

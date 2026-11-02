@@ -313,6 +313,16 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
     title = (entry.get("title") or "Sunday " + service_date.strftime("%B %-d")).upper()
     scripture = (entry.get("scripture") or "").upper()
     lockup = cutout(trim_to_content(art)) if art else None
+    guest = (f"GUEST PREACHER \u00b7 {entry['preacher'].upper()}"
+             if entry.get("guest") and entry.get("preacher") else "")
+    gf = rd.font("semibold", 24, fonts_dir)
+    gw, gh = round(rd.text_width(guest, gf, 3)) + 36, 46
+
+    def swatch(x, bottom):
+        """The guest label: a solid block of the series accent above the title."""
+        d.rectangle((x, bottom - gh, x + gw, bottom), fill=accent)
+        rd.draw_tracked(d, x + 18, bottom - 15, guest, gf,
+                        ink if _lum(accent) > 140 else off, tracking=3)
 
     def brand_mark(x, y, center=False):
         """No series art: the full Eastpoint logo; with a series but no art yet,
@@ -343,6 +353,8 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
         f, size, lines = _title_lines(title, fonts_dir, 640, (104, 92, 80, 70, 62), 2)
         lead = int(size * 1.02)
         y = TH - (118 if scripture else 70) - lead * (len(lines) - 1)
+        if guest:
+            swatch(x, y - round(size * 0.74) - 26)
         for i, line in enumerate(lines):
             d.text((x, y + i * lead), line, font=f, fill=off, anchor="ls")
         if scripture:
@@ -352,14 +364,17 @@ def render(entry, service_date, brand, fonts_dir, out_path, photo_path=None, art
         top, bottom = 56, 48
         f, size, lines = _title_lines(title, fonts_dir, 1120, (104, 92, 80, 70, 60), 2)
         lead = int(size * 1.02)
-        block = size + lead * (len(lines) - 1) + (58 if scripture else 0)   # title + scripture
+        block = (size + lead * (len(lines) - 1) + (58 if scripture else 0)   # title + scripture
+                 + (gh + 26 if guest else 0))                                # + guest label
         if lockup:                  # the lockup takes whatever height the title leaves
             lk = _contain(lockup, 1000, min(360, TH - top - bottom - block - 44))
             img.paste(lk, ((TW - lk.width) // 2, top), lk)
             y = top + lk.height
         else:
             y = top + 60 + brand_mark(0, top + 60, center=True)
-        y = max(y + 40 + size, TH - bottom - block + size)
+        y = max(y + 40 + size + (gh + 26 if guest else 0), TH - bottom - block + size)
+        if guest:
+            swatch((TW - gw) // 2, y - round(size * 0.74) - 26)
         for i, line in enumerate(lines):
             tw = rd.text_width(line, f)
             d.text(((TW - tw) / 2, y + i * lead), line, font=f, fill=off, anchor="ls")

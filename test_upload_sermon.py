@@ -81,6 +81,9 @@ check("en-dash left alone", U.normalise_scripture("Luke 18:1–8"), "Luke 18:1�
 
 
 # --- guest preachers, which the old Apps Script version got wrong ----------
+check("guest week marked", U.is_guest("Nov. 1 - Mark 2:13-17 - You Can't Restrict the Healer - Guest Preacher Riley Davis"), True)
+check("staff fill-in is not a guest week", U.is_guest("Sept. 13 - (Peter out, Kevin Preaching) - John 15 - How do I grow"), False)
+check("an ordinary week is not a guest week", U.is_guest("Oct. 18 - Mark 1:35-45 - Jesus Goes Viral"), False)
 
 for line, want in [
     ("June 14 - James 1:5-7 – “Hearing From God” (Guest Preacher - Chris Hankins)", "Chris Hankins"),
