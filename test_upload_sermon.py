@@ -68,6 +68,11 @@ for line, want_title, want_scripture in [
     ("June 14 - James 1:5-7 – “Hearing From God” (Guest Preacher - Chris Hankins)",
      "Hearing From God", "James 1:5–7"),
     ("Oct. 11 - Mark 1:21-34 - ", "", "Mark 1:21–34"),
+    # ranges across chapters, with or without spaces
+    ("Nov. 8 - Mark 2:18 - 3:6 - ", "", "Mark 2:18–3:6"),
+    ("Nov. 8 - Mark 2:18 - 3:6 - A Title", "A Title", "Mark 2:18–3:6"),
+    ("Feb 15 - Colossians 1:21-2:5 - What Jesus means for you",
+     "What Jesus means for you", "Colossians 1:21–2:5"),
 ]:
     hit = U.match_doc_date_line(line)
     assert hit, line

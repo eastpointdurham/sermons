@@ -176,7 +176,7 @@ def match_doc_date_line(text):
 
 
 SCRIPTURE_RE = re.compile(
-    r"((?:[1-3]\s*)?(?:[A-Z][a-z]+)\.?\s+\d+(?::\d+(?:\s*[-–—]\s*\d+)?)?(?:\s*[-–—]\s*\d+:\d+)?)")
+    r"((?:[1-3]\s*)?(?:[A-Z][a-z]+)\.?\s+\d+(?::\d+(?:\s*[-–—]\s*\d+(?::\d+)?)?)?(?:\s*[-–—]\s*\d+:\d+)?)")
 
 GUEST_RE = re.compile(
     r"(?:guest\s+preacher\s*[-–—:]?\s*|(\b[A-Z][a-z]+\s+[A-Z][a-z]+\b)\s+preaching)",
