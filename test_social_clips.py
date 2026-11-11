@@ -305,6 +305,15 @@ try:
 finally:
     sc.list_folder, sc.download = _rl, _rd
 
+# a title that arrived after the reels were made
+_p = {"clips": [{"instagram_caption": 'Line.\n\nFrom "All In: Sunday sermon"\n\n#Durham',
+                 "facebook_caption": 'Line.\n\nFrom "Sunday sermon"'}]}
+check("captions retitled", sc.retitle_captions(_p, "A Title") == 2)
+check("series kept in the credit", 'From "All In: A Title"\n' in _p["clips"][0]["instagram_caption"])
+check("credit without a series", _p["clips"][0]["facebook_caption"].endswith('From "A Title"'))
+check("no title, captions left alone", sc.retitle_captions(
+    {"clips": [{"instagram_caption": 'From "Sunday sermon"'}]}, "") == 0)
+
 # lengthening a reel ---------------------------------------------------------------
 _ss = [{"a": i, "b": i, "start": i * 5.0, "end": i * 5.0 + 4.6, "text": f"Sentence {i}" + ("," if i == 9 else ".")}
        for i in range(30)]

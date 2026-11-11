@@ -755,6 +755,21 @@ def reuse_plan(drive, sermon, state, workdir):
     return None
 
 
+def retitle_captions(plan, title):
+    """Captions written before the title was known say From "Sunday sermon";
+    a reused plan picks up the title that has arrived since."""
+    if not title:
+        return 0
+    n = 0
+    for c in plan.get("clips", []):
+        for k in ("instagram_caption", "facebook_caption"):
+            new, hits = re.subn(r'(From "(?:[^"\n]*: )?)Sunday sermon"',
+                                lambda m: m.group(1) + title + '"', c.get(k) or "")
+            if hits:
+                c[k], n = new, n + hits
+    return n
+
+
 def process(drive, sermon, brand, state):
     service_date = sermon["service_date"]
     meta = sermon_meta(service_date)
@@ -789,6 +804,8 @@ def process(drive, sermon, brand, state):
         if reused:                                      # same clips, re-rendered
             plan, words, reuse_folder = reused
             log("  re-rendering last run's clips (plan and word timings from Drive)")
+            if retitle_captions(plan, meta.get("title")):
+                log(f"  captions now name the sermon: {meta['title']}")
         elif os.environ.get("SOCIAL_WORDS_JSON"):       # testing: skip transcription
             words = json.load(open(os.environ["SOCIAL_WORDS_JSON"]))
         else:
@@ -880,6 +897,9 @@ def process(drive, sermon, brand, state):
             parent = ensure_folder(drive, "Social Drafts", sermons_parent)
         folder_name = f"{stamp} {meta.get('title') or 'Sermon'}"[:120]
         folder = reused[2] if reused else ensure_folder(drive, folder_name, parent)
+        if reused and meta.get("title"):                # "<date> Sermon" made before the title
+            drive.files().update(fileId=folder, body={"name": folder_name},
+                                 supportsAllDrives=True).execute(num_retries=DRIVE_RETRIES)
         for c in clips:
             c["drive_ids"] = {}
             for style, name in c["files"].items():
