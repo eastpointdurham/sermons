@@ -15,6 +15,10 @@ Drive "Sermons" folder into a private YouTube draft, a podcast MP3, a transcript
   (brand graphics in Pillow) → ffmpeg → Drive "Social Drafts/<date> <title>" with each
   reel in two looks, "(editorial)" and "(bold)", plus a Google Doc plan, plan.json,
   and a `Final Cut/` folder (`fcp_export.py`: FCPXML + .srt).
+  While we compare (`cut`: both, the default), each reel also comes "tight"
+  (`reel_fx.py`): pauses, ums and stumbles cut, punch-in zooms; the bold tight one
+  adds a music bed (Drive "Reel Music" via SOCIAL_MUSIC_FOLDER_ID, licensed tracks
+  only, else a generated pad) and a whoosh.
 
 ## Brand
 `social/brand.json` (ink #1a1a1a, off-white #f5f5f5, sage #778472; "style": both).

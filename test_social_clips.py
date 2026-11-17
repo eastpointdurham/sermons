@@ -314,6 +314,60 @@ check("credit without a series", _p["clips"][0]["facebook_caption"].endswith('Fr
 check("no title, captions left alone", sc.retitle_captions(
     {"clips": [{"instagram_caption": 'From "Sunday sermon"'}]}, "") == 0)
 
+# the tight cut ---------------------------------------------------------------
+import reel_fx as rfx                                           # noqa: E402
+
+def _w(*spec):
+    return [{"w": w, "s": s, "e": e} for w, s, e in spec]
+
+_ws = _w(("So", 0.0, 0.3), ("um,", 0.5, 0.8), ("Jesus", 0.9, 1.3), ("came", 1.35, 1.6),
+         ("for", 1.62, 1.8), ("the", 1.82, 1.9), ("the", 2.0, 2.1), ("weary.", 2.15, 2.6),
+         ("And,", 4.0, 4.3), ("like,", 4.35, 4.6), ("he", 4.7, 4.8), ("stays.", 4.85, 5.4))
+check("fillers, asides and stumbles dropped", sorted(rfx.drop_words(_ws)) == [1, 5, 9])
+check("'no, no, no' is not a stumble",
+      not rfx.drop_words(_w(("No,", 0, .2), ("no,", .3, .5), ("no.", .6, .8))))
+check("'you know,' as an aside", rfx.drop_words(_w(("and,", 0, .2), ("you", .3, .4), ("know,", .45, .6),
+                                                    ("it", .7, .8))) == {1, 2})
+check("'I like it' kept", not rfx.drop_words(_w(("I", 0, .1), ("like", .15, .3), ("it.", .35, .5))))
+_segs = rfx.tight_segments(_ws, 0.0, 5.75, None, fps=30)
+_total = sum(e - s for s, e in _segs)
+check("tight cut is shorter", _total < 5.75 - 1.5)
+check("cuts sit on the frame grid", all(abs(x * 30 - round(x * 30)) < 1e-6 for s in _segs for x in s))
+check("segments in order, no overlap", all(a[1] <= b[0] for a, b in zip(_segs, _segs[1:])))
+check("the um stays cut, even beside a short 'So'", not any(s < 0.6 < e for s, e in _segs))
+check("slivers only beside a removed word",
+      len(rfx.tight_segments(_w(("a", 0, .5), ("b", 1.0, 1.2), ("c", 1.7, 3.4)), 0, 3.7)) < 3)
+check("a long pause is never put back for a sliver",
+      len(rfx.tight_segments(_w(("a", 0, .5), ("b", 1.6, 1.8), ("c", 2.9, 3.4)), 0, 3.7)) == 3)
+_tw = rfx.tight_words(_ws, _segs)
+check("tight words lose the filler", [w["w"] for w in _tw] == ["So", "Jesus", "came", "for", "the",
+                                                               "weary.", "And,", "he", "stays."])
+check("tight words in time order", all(a["s"] <= b["s"] for a, b in zip(_tw, _tw[1:])))
+check("tight words inside the cut", _tw[-1]["e"] <= _total + 1e-6)
+check("whole sentence kept around a cut", any(s <= 2.15 and e >= 2.6 for s, e in _segs))
+check("remap: a time in a cut lands on the cut", rfx.remap(3.2, [(0, 2.7), (3.9, 5)]) == 2.7)
+check("remap after a cut", abs(rfx.remap(4.0, [(0, 2.7), (3.9, 5)]) - 2.8) < 1e-9)
+check("a pause under the threshold stays",
+      len(rfx.tight_segments(_w(("a", 0, .5), ("b", .6, 1.0)), 0, 1.3)) == 1)
+check("fillers from the verbatim pass fill gaps only",
+      len(rfx.merge_fillers(_w(("a", 0, .5), ("b", 1.5, 2)), [(0.7, 1.0), (0.1, 0.4)])) == 3)
+_sp = rfx.zoom_spans([(0, 2), (3, 4), (5, 9), (10, 13), (14, 20)], 15)
+check("zooms change at most every few seconds",
+      all(b - a >= rfx.ZOOM_EVERY - 1e-9 for a, b in _sp) and len(_sp) >= 1)
+check("no zoom without cuts", rfx.zoom_filter([]) == "null")
+check("zoom: a zoomed copy over the clip, only inside the span",
+      rfx.zoom_filter([(3, 6)], 0.2).endswith("overlay=0:0:enable='between(t,3.000,5.983)'"))
+check("zoom keeps the frame size", ":crop=1080:1920:" in rfx.zoom_filter([(3, 6)]).replace(",crop", ":crop"))
+_wav = os.path.join(tempfile.mkdtemp(), "bed.wav")
+rfx.music_bed(_wav, 3.0, seed=2)
+import wave as _wave                                            # noqa: E402
+with _wave.open(_wav) as _f:
+    check("music bed: stereo, 48 kHz, right length",
+          (_f.getnchannels(), _f.getframerate(), round(_f.getnframes() / 48000, 1)) == (2, 48000, 3.0))
+rfx.sfx_track(_wav, 2.0, at=(0.0,))
+with _wave.open(_wav) as _f:
+    check("sfx track the right length", round(_f.getnframes() / 48000, 1) == 2.0)
+
 # lengthening a reel ---------------------------------------------------------------
 _ss = [{"a": i, "b": i, "start": i * 5.0, "end": i * 5.0 + 4.6, "text": f"Sentence {i}" + ("," if i == 9 else ".")}
        for i in range(30)]

@@ -538,11 +538,13 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
     import reel_design as rd
     dur = clip["end"] - clip["start"]
     ink = brand["ink"].lstrip("#")
+    key = f"{clip['n']}{clip.get('_tag', '')}"     # the tight cut renders apart from the natural one
     if layout == "fill":
-        vertical = os.path.join(workdir, f"clip{clip['n']}_vertical.mp4")
+        vertical = os.path.join(workdir, f"clip{key}_vertical.mp4")
         if not os.path.exists(vertical):            # shared by both styles
             import reframe
-            sheet = os.path.join(os.path.dirname(out_path), f"camera check reel {clip['n']}.jpg")
+            sheet = (None if clip.get("_tag") else
+                     os.path.join(os.path.dirname(out_path), f"camera check reel {clip['n']}.jpg"))
             stats = reframe.render_vertical(video_path, clip["start"], dur, vertical,
                                             sheet_path=sheet)
             clip["reframe"] = stats
@@ -558,7 +560,7 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
     if "_grade" not in clip:                        # shared by both looks
         import grade
         clip["_grade"], clip["grade"] = grade.grade_filter(src, src_ss, dur, workdir,
-                                                           f"clip{clip['n']}_grade")
+                                                           f"clip{key}_grade")
         log(f"    colour: {clip['grade']}")
     if "_audio" not in clip:                        # hiss out before the loudness step
         import audio
@@ -566,9 +568,11 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
         log(f"    audio: {clip['audio']}")
     if clip["_grade"]:                              # before the pad: the ink frame stays ink
         base = f"{clip['_grade']},{base}"
+    if clip.get("_zoom") and layout == "fill":      # zoom first: after the grade it is slow
+        base = f"{clip['_zoom']},{base}"
 
     overlay = rd.make_overlay(clip, brand, layout, FONTS_DIR,
-                              os.path.join(workdir, f"clip{clip['n']}_{style}_overlay.png"), style)
+                              os.path.join(workdir, f"clip{key}_{style}_overlay.png"), style)
     chunks = (caption_chunks(clip["words"], max_words=3, max_chars=16) if style == "editorial"
               else caption_chunks(clip["words"]))
     captions = rd.caption_track(clip, chunks, brand, FONTS_DIR, layout, workdir, style)
@@ -582,16 +586,25 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
              f"[2:v]format=rgba,fps=30[c];"
              f"[vo][c]overlay=0:0:eof_action=repeat,trim=duration={dur:.3f},"
              f"format=yuv420p[out]")
-    main = os.path.join(workdir, f"clip{clip['n']}_{style}_main.mp4")
+    main = os.path.join(workdir, f"clip{key}_{style}_main.mp4")
+    inputs = ["-ss", f"{src_ss:.3f}", "-t", f"{dur:.3f}", "-i", src,
+              "-loop", "1", "-t", f"{dur:.3f}", "-i", overlay,
+              "-f", "concat", "-safe", "0", "-i", captions,
+              "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path]
+    finish = "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000"
+    if style in clip.get("_sound_styles", ()):     # music bed ducked under the voice, plus whoosh
+        import reel_fx
+        inputs += ["-i", clip["_music"], "-i", clip["_sfx"]]
+        graph += (f";[3:a]{clip['_audio'] or 'anull'},asplit[v1][v2];"
+                  f"[4:a]atrim=duration={dur:.3f},volume={reel_fx.MUSIC_DB}dB[m];"
+                  f"[m][v1]sidechaincompress=threshold=0.02:ratio=6:attack=30:release=700[md];"
+                  f"[v2][md][5:a]amix=inputs=3:duration=first:normalize=0,{finish}[aout]")
+        audio_map = ["-map", "[aout]"]
+    else:
+        audio_map = ["-map", "3:a:0", "-af", ",".join(f for f in (clip["_audio"], finish) if f)]
     subprocess.run([
-        "ffmpeg", "-v", "error", "-y",
-        "-ss", f"{src_ss:.3f}", "-t", f"{dur:.3f}", "-i", src,
-        "-loop", "1", "-t", f"{dur:.3f}", "-i", overlay,
-        "-f", "concat", "-safe", "0", "-i", captions,
-        "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path,
-        "-filter_complex", graph, "-map", "[out]", "-map", "3:a:0",
-        "-af", ",".join(f for f in (clip["_audio"], "loudnorm=I=-14:TP=-1.5:LRA=11",
-                                     "aresample=48000") if f),
+        "ffmpeg", "-v", "error", "-y", *inputs,
+        "-filter_complex", graph, "-map", "[out]", *audio_map,
         "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-profile:v", "high",
         "-tune", "film", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-shortest", main],
         check=True)
@@ -600,12 +613,75 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
     if not os.path.exists(card):
         render_end_card(brand, card, workdir, style)
 
-    lst = os.path.join(workdir, f"clip{clip['n']}_{style}.txt")
+    lst = os.path.join(workdir, f"clip{key}_{style}.txt")
     with open(lst, "w") as f:
         f.write(f"file '{main}'\nfile '{card}'\n")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst,
                     "-c", "copy", "-movflags", "+faststart", out_path], check=True)
     os.remove(main)
+
+
+CUT = os.environ.get("SOCIAL_CUT") or "both"    # natural | tight | both
+
+
+def reel_music(drive, workdir, service_date):
+    """A track from Drive "Reel Music" (SOCIAL_MUSIC_FOLDER_ID), a different one
+    each week; None means the generated pad. Only licensed tracks go in there."""
+    folder = os.environ.get("SOCIAL_MUSIC_FOLDER_ID")
+    if drive is None or not folder:
+        return None
+    try:
+        tracks = sorted((f for f in list_folder(drive, folder)
+                         if f.get("mimeType", "").startswith("audio/")), key=lambda f: f["name"])
+        if not tracks:
+            return None
+        f = tracks[service_date.toordinal() // 7 % len(tracks)]
+        path = os.path.join(workdir, "music" + os.path.splitext(f["name"])[1])
+        download(drive, f["id"], path)
+        log(f"  music: {f['name']}")
+        return path
+    except Exception as e:
+        log(f"  ! could not fetch reel music: {e}")
+        return None
+
+
+def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, week):
+    """The tight cut of a reel, next to the natural one: pauses and ums out,
+    punch-in zooms at some cuts; the bold look also gets music and a whoosh."""
+    import reel_fx
+    fps = probe_video(video)[2]
+    dur = c["end"] - c["start"]
+    words = c["words"]
+    try:
+        words = reel_fx.merge_fillers(words, reel_fx.find_fillers(video, c["start"], dur, workdir))
+    except Exception as e:
+        log(f"    ! verbatim pass skipped: {e}")
+    env = reel_fx.envelope(video, c["start"], dur)
+    segs = reel_fx.tight_segments(words, c["start"], c["end"], env, fps)
+    total = sum(e - s for s, e in segs)
+    src = reel_fx.build_source(video, segs, os.path.join(workdir, f"clip{c['n']}t_src.mkv"))
+    t = {k: v for k, v in c.items() if not k.startswith("_") and k not in (
+        "files", "file", "reframe", "grade", "audio", "crop_center", "head_top", "layout")}
+    t.update(_tag="t", start=0.0, end=round(total, 3), words=reel_fx.tight_words(words, segs),
+             sentence_starts=[reel_fx.remap(x, segs) for x in c.get("sentence_starts", [])])
+    if (c.get("layout") or LAYOUT) == "fill":
+        t["_zoom"] = reel_fx.zoom_filter(reel_fx.zoom_spans(segs, total), c.get("head_top"))
+    if "bold" in styles:
+        t["_sound_styles"] = {"bold"}
+        t["_music"] = (music if music else
+                       reel_fx.music_bed(os.path.join(workdir, f"bed{c['n']}.wav"), total + 1, week + c["n"]))
+        t["_sfx"] = reel_fx.sfx_track(os.path.join(workdir, f"sfx{c['n']}.wav"), total + 1, at=(0.0,))
+    c["tight"] = {"seconds": round(total, 1), "removed": round(dur - total, 1),
+                  "cuts": len(segs) - 1, "files": {}}
+    log(f"  tight {c['n']}: {dur:.0f}s -> {total:.0f}s, {len(segs) - 1} cuts")
+    for style in styles:
+        name = f"{base_name} ({style}, tight).mp4"
+        log(f"  rendering {c['n']} {style}, tight")
+        render_clip(src, t, brand, os.path.join(out_dir, name), workdir,
+                    c.get("layout") or LAYOUT, style)
+        c.setdefault("files", {})[f"{style}, tight"] = name
+        c["tight"]["files"][style] = name
+    os.remove(src)
 
 
 def render_end_card(brand, out_path, workdir, style="editorial"):
@@ -636,11 +712,18 @@ def plan_html(plan, clips, meta, service_date):
                 "you like, whenever suits, with the copy given for each. Each reel comes in two "
                 "looks: (editorial) calm captions, and (bold) hook banner and brush stroke. Post "
                 "whichever fits the moment; delete the other.</p>")
+    if any(c.get("tight") for c in clips):
+        rows.append("<p><b>Tight versions (to compare):</b> each reel also comes cut tighter, "
+                    "marked \"tight\": long pauses, ums and stumbles taken out, with a punch-in "
+                    "zoom at some cuts. The bold tight version also has a soft music bed under "
+                    "the voice and a whoosh as the hook appears. Instagram's own music can be "
+                    "added when posting instead; use a version without music for that.</p>")
     rows.append("<table border='1' cellpadding='6'><tr><th>Option</th><th>File</th><th>Hook</th>"
                 "<th>Length</th><th>Kind</th><th>Why</th></tr>")
     for c in clips:
         rows.append(f"<tr><td>{c.get('n', '')}</td><td>{esc(' / '.join(c.get('files', {}).values()) or c['file'])}</td>"
-                    f"<td>{esc(c['hook'])}</td><td>{c['end'] - c['start']:.0f}s</td>"
+                    f"<td>{esc(c['hook'])}</td><td>{c['end'] - c['start']:.0f}s"
+                    f"{' (tight %.0fs)' % c['tight']['seconds'] if c.get('tight') else ''}</td>"
                     f"<td>{esc(c.get('kind'))}</td><td>{esc(c.get('why'))}</td></tr>")
     rows.append("</table>")
     for c in clips:
@@ -748,7 +831,8 @@ def reuse_plan(drive, sermon, state, workdir):
             words = json.load(open(paths["transcript_words.json"]))
             for c in plan.get("clips", []):             # render fresh; keep the choice
                 for k in ("start", "end", "files", "file", "drive_id", "drive_ids", "reframe",
-                          "grade", "audio", "crop_center", "head_top", "text", "sentence_starts"):
+                          "grade", "audio", "crop_center", "head_top", "text", "sentence_starts",
+                          "tight"):
                     c.pop(k, None)
             return plan, words, rec["drafts_folder_id"]
     log("  ! nothing to reuse for this sermon; choosing clips afresh")
@@ -834,6 +918,7 @@ def process(drive, sermon, brand, state):
         out_dir = os.path.join(tmp, "out")
         os.makedirs(out_dir)
         styles = styles_to_render(brand)
+        music = reel_music(drive, tmp, service_date) if CUT in ("both", "tight") else None
         for n, c in enumerate(clips, 1):
             c["n"] = n
             slug = re.sub(r"[^a-z0-9]+", "-", c["hook"].lower()).strip("-")[:40]
@@ -846,6 +931,12 @@ def process(drive, sermon, brand, state):
                 c["files"][style] = name
             c["file"] = next(iter(c["files"].values()))
             c.pop("_framed_once", None)
+            if CUT in ("both", "tight"):
+                try:
+                    render_tight(video, c, brand, styles, out_dir, tmp, f"{stamp} reel {n} - {slug}",
+                                 music, service_date.toordinal() // 7)
+                except Exception as e:                 # the natural reels still go out
+                    log(f"  ! tight version of reel {n} failed: {e}")
 
         # Final Cut handoff: full-quality projects + captions for finishing
         import fcp_export
