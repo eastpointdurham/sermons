@@ -154,6 +154,21 @@ check("week3: published sermon leaves private list",
 pub4, priv4 = partition_videos([], {"zzz": {"id": "zzz", "title": "gone"}}, today="2026-08-26")
 check("removed video stays tracked, not crashed", [s["id"] for s in priv4], ["zzz"])
 
+# --- /latest redirect page ---------------------------------------------------
+from build_site import build_latest_html  # noqa: E402
+
+_older = {"id": "old", "date": "2026-11-01", "title": "Older", "url": "https://www.youtube.com/watch?v=old"}
+_newer = {"id": "new", "date": "2026-11-08", "title": "Newer & Best", "url": "https://www.youtube.com/watch?v=new"}
+_latest = build_latest_html([_older, _newer])
+check("latest: forwards to newest sermon", 'url=https://www.youtube.com/watch?v=new"' in _latest, True)
+check("latest: does not point at older sermon", "watch?v=old" in _latest, False)
+check("latest: title escaped", "Newer &amp; Best" in _latest, True)
+# main() passes only public_videos, so a newer draft never appears here; the
+# draft 'bbb' from week 1 must not be linked from a page built off pub.
+check("latest: built from public list has no draft",
+      "bbb" in build_latest_html([dict(v, date="2026-08-18") for v in pub]), False)
+check("latest: empty archive falls back to archive", 'url=../"' in build_latest_html([]), True)
+
 if __name__ == "__main__":
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)

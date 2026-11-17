@@ -7,6 +7,7 @@ Environment variables:
 """
 
 import json, os, time, sys
+from html import escape as html_escape
 
 try:
     from googleapiclient.discovery import build
@@ -631,6 +632,39 @@ def build_html(channel_name, sermons):
     return html
 
 
+LATEST_FILE = os.path.join("latest", "index.html")
+
+
+def build_latest_html(sermons):
+    """A page at /latest that forwards to the newest published sermon.
+
+    Linktree (or anything else) can point here once and never be edited. Only
+    public sermons are passed in, so it can never send anyone to a draft.
+    With no sermons it falls back to the archive itself.
+    """
+    newest = max(sermons, key=lambda s: s["date"]) if sermons else None
+    target = newest["url"] if newest else "../"
+    label = html_escape(newest["title"]) if newest else "the sermon archive"
+    t = html_escape(target, quote=True)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Latest sermon · Eastpoint Church</title>
+<meta http-equiv="refresh" content="0; url={t}">
+<link rel="canonical" href="{t}">
+<script>location.replace({json.dumps(target)});</script>
+</head>
+<body style="font-family:sans-serif;padding:2rem">
+<p>Taking you to this week's sermon: <a href="{t}">{label}</a></p>
+<p><a href="../">All sermons</a></p>
+</body>
+</html>
+"""
+
+
 def main():
     youtube = build("youtube", "v3", developerKey=API_KEY)
     youtube_oauth = build_youtube_oauth()
@@ -728,7 +762,12 @@ def main():
 
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(build_html(channel_name, public_videos))
-    print("Built index.html\nDone.")
+    print("Built index.html")
+
+    os.makedirs(os.path.dirname(LATEST_FILE), exist_ok=True)
+    with open(LATEST_FILE, "w", encoding="utf-8") as f:
+        f.write(build_latest_html(public_videos))
+    print(f"Built {LATEST_FILE}\nDone.")
 
 
 if __name__ == "__main__":
