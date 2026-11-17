@@ -5,3 +5,5 @@ social/fonts/
 social_out/
 Claude outputs/
 .DS_Store
+.env
+.env.*
