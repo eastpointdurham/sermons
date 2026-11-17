@@ -638,16 +638,31 @@ def reel_music(drive, workdir, service_date):
         return None
 
 
-def reel_sound(c, total, workdir, music, show_hook):
+def audio_seconds(path):
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+                          "csv=p=0", path], capture_output=True, text=True).stdout.strip()
+    return float(out or 0)
+
+
+def reel_sound(c, total, workdir, music, show_hook, cached=None, keep_dir=None):
     """(music bed, sfx track) for a reel: Drive "Reel Music" if it has a track, else
-    ElevenLabs, else the generated pad; the whoosh likewise. Never fails a reel."""
+    ElevenLabs, else the generated pad; the whoosh likewise. Never fails a reel.
+    A rerun reuses the bed this reel had last time (`cached`) when it is still long
+    enough, so remaking a week's reels costs no more ElevenLabs credits; a new
+    ElevenLabs bed is copied to `keep_dir` to go into the drafts folder for that."""
     import reel_fx
     import eleven
     bed = music
+    if not bed and cached and audio_seconds(cached) >= total + 0.2:
+        bed = cached
+        log(f"    music: last run's ElevenLabs bed")
     if not bed and eleven.available():
         try:
             bed = eleven.music(os.path.join(workdir, f"music{c['n']}.mp3"), total + 0.5, c.get("kind", ""))
             log(f"    music: ElevenLabs ({total:.0f}s)")
+            if keep_dir:
+                import shutil
+                shutil.copy(bed, os.path.join(keep_dir, f"music reel {c['n']}.mp3"))
         except Exception as e:
             log(f"    ! ElevenLabs music failed, using the generated pad: {e}")
     if not bed:
@@ -690,7 +705,8 @@ def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, su
              _zoom_spans=reel_fx.zoom_spans(segs, total))
     if "bold" in styles:
         t["_sound_styles"] = {"bold"}
-        t["_music"], t["_sfx"] = reel_sound(c, total, workdir, music, rd.shows_hook(t))
+        t["_music"], t["_sfx"] = reel_sound(c, total, workdir, music, rd.shows_hook(t),
+                                            c.get("_music_cache"), out_dir)
     c["tight"] = {"seconds": round(total, 1), "removed": round(dur - total, 1),
                   "cuts": len(segs) - 1, "files": {}}
     log(f"  tight {c['n']}: {dur:.0f}s -> {total:.0f}s, {len(segs) - 1} cuts")
@@ -900,6 +916,17 @@ def process(drive, sermon, brand, state):
             words = transcribe(video, tmp)
         sentences = sentences_from_words(words)
 
+        music_cache = {}                                # last run's ElevenLabs beds, by reel
+        if reused:
+            try:
+                for f in list_folder(drive, reuse_folder):
+                    m = re.fullmatch(r"music reel (\d+)\.mp3", f["name"])
+                    if m:
+                        music_cache[int(m.group(1))] = os.path.join(tmp, f["name"])
+                        download(drive, f["id"], music_cache[int(m.group(1))])
+            except Exception as e:
+                log(f"  ! could not fetch last run's music: {e}")
+
         if reused:
             if os.environ.get("SOCIAL_EXTEND_CLIP") and (os.environ.get("SOCIAL_START_AT")
                                                          or os.environ.get("SOCIAL_END_AT")):
@@ -925,6 +952,7 @@ def process(drive, sermon, brand, state):
         music = reel_music(drive, tmp, service_date) if CUT in ("both", "tight") else None
         for n, c in enumerate(clips, 1):
             c["n"] = n
+            c["_music_cache"] = music_cache.get(n)
             slug = re.sub(r"[^a-z0-9]+", "-", c["hook"].lower()).strip("-")[:40]
             c["files"] = {}
             if CUT == "tight":                         # the one version we post
@@ -1010,6 +1038,8 @@ def process(drive, sermon, brand, state):
         for name in sorted(os.listdir(out_dir)):
             if name.startswith("camera check"):
                 upload(drive, os.path.join(out_dir, name), name, folder, "image/jpeg")
+            elif name.startswith("music reel"):           # reused by a rerun: no new credits
+                upload(drive, os.path.join(out_dir, name), name, folder, "audio/mpeg")
         log(f"  plan: {doc.get('webViewLink')}")
 
     state.append({"drive_file_id": sermon["id"], "drive_file_name": sermon["name"],

@@ -399,6 +399,24 @@ with tempfile.TemporaryDirectory() as _d, \
         mock.patch("eleven.sound_effect", side_effect=RuntimeError("HTTP 401")):
     _bed, _sfx = sc.reel_sound({"n": 1}, 4.0, _d, None, True)
     check("ElevenLabs failing never loses a reel", os.path.exists(_bed) and os.path.exists(_sfx))
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("eleven.music", side_effect=AssertionError("should not be called")) as _m:
+    _old = os.path.join(_d, "music reel 1.mp3")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                    "-t", "6", _old], check=True)
+    _bed, _ = sc.reel_sound({"n": 1}, 4.0, _d, None, False, cached=_old)
+    check("rerun reuses last run's music: no new credits", _bed == _old and not _m.called)
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("eleven.music", side_effect=lambda path, *a, **k: open(path, "wb").write(b"x") and path):
+    _old = os.path.join(_d, "short.mp3")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                    "-t", "2", _old], check=True)
+    _keep = os.path.join(_d, "keep"); os.makedirs(_keep)
+    _bed, _ = sc.reel_sound({"n": 2}, 4.0, _d, None, False, cached=_old, keep_dir=_keep)
+    check("a reel grown past last run's music gets a new bed, kept for next time",
+          _bed != _old and os.path.exists(os.path.join(_keep, "music reel 2.mp3")))
 
 # lengthening a reel ---------------------------------------------------------------
 _ss = [{"a": i, "b": i, "start": i * 5.0, "end": i * 5.0 + 4.6, "text": f"Sentence {i}" + ("," if i == 9 else ".")}
