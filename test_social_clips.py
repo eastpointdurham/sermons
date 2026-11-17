@@ -436,6 +436,12 @@ d1 = _date(2026, 9, 27)
 check("photo pick is stable", T.pick_photo(photos, d1) == T.pick_photo(list(reversed(photos)), d1))
 check("photo rotates weekly", T.pick_photo(photos, d1) != T.pick_photo(photos, _date(2026, 10, 4)))
 check("no photos -> None", T.pick_photo([{"name": "x.txt"}], d1) is None)
+_shots = [{"name": f"P {d} {x}.jpg"} for d, xs in (("2025-09-28", "abcd"), ("2026-03-08", "ab"),
+                                                    ("2026-05-17", "a")) for x in xs]
+_picks = [T.pick_photo(_shots, d1 + timedelta(weeks=i))["name"][:12] for i in range(12)]
+check("next week is always a different shoot", all(a != b for a, b in zip(_picks, _picks[1:])))
+check("every shot comes round", len({T.pick_photo(_shots, d1 + timedelta(weeks=i))["name"]
+                                     for i in range(24)}) == len(_shots))
 _stage = [(0.18, 0.29, 0.07, 0.95), (0.02, 0.32, 0.09, 0.91), (0.81, 0.18, 0.07, 0.91), (0.49, 0.32, 0.09, 0.91)]
 check("preacher photo frames the preacher, not the band", T.speaker_face(_stage)[0] == 0.49)
 check("no faces, no speaker", T.speaker_face([]) is None)

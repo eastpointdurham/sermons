@@ -107,11 +107,20 @@ def community_options(drive, photos_root, service_date, n=BACKUP_OPTIONS, skip=N
 
 
 def pick_photo(files, service_date):
-    """Rotate through the folder a week at a time, so reruns pick the same photo."""
+    """Rotate through the folder a week at a time, so reruns pick the same photo.
+    Shots from one shoot ("Peter Frey 2026-03-08 a", "... b") look alike, so each
+    week moves to the next shoot, and only then to the next shot within one."""
     photos = sorted((f for f in files if IMAGE_RE.search(f["name"])), key=lambda f: f["name"])
     if not photos:
         return None
-    return photos[(service_date.toordinal() // 7) % len(photos)]
+    shoots = {}
+    for f in photos:
+        stem = os.path.splitext(f["name"])[0]
+        shoots.setdefault(re.sub(r"\s+[a-z]$", "", stem), []).append(f)
+    shoots = [shoots[k] for k in sorted(shoots)]
+    week = service_date.toordinal() // 7
+    shoot = shoots[week % len(shoots)]
+    return shoot[(week // len(shoots)) % len(shoot)]
 
 
 # --------------------------------------------------------------------------
