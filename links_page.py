@@ -153,6 +153,8 @@ a{color:inherit;text-decoration:none}
   border-radius:999px;font-weight:700;font-size:16px;background:#fff}
 .btn:hover,.events a:hover b{color:var(--sage)}
 .btn:hover{border-color:var(--sage)}
+.featured{background:var(--sage);border-color:var(--sage);color:#fff;font-size:17px;margin:0}
+.featured:hover{background:var(--ink);border-color:var(--ink);color:#fff}
 a:focus-visible{outline:3px solid var(--sage);outline-offset:3px}
 footer{text-align:center;margin-top:28px;font-size:13px;color:var(--muted)}
 """
@@ -166,16 +168,21 @@ def build_page(sermon, events, config, now=None):
         parts.append(f'<p class="sunday">{escape(config["sunday"])}</p>')
     parts.append("</header>")
 
+    top = config.get("featured")
+    if top and top.get("url"):
+        parts.append(f'<a class="btn featured" href="{escape(top["url"], quote=True)}">'
+                     f'{escape(top.get("label") or "Plan your visit")}</a>')
+
     if sermon:
-        vid = escape(sermon["id"], quote=True)
-        thumb = f"https://i.ytimg.com/vi/{vid}/maxresdefault.jpg"
-        fallback = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+        # hqdefault exists as soon as a video is up (maxresdefault can lag and
+        # comes back as a grey placeholder); its letterbox bars are cropped
+        # away by the 16:9 object-fit.
+        thumb = f"https://i.ytimg.com/vi/{escape(sermon['id'], quote=True)}/hqdefault.jpg"
         meta = " · ".join(x for x in (sermon.get("scripture"), sermon.get("preacher")) if x)
         parts.append(
             '<h2>This week\'s sermon</h2>'
             f'<a class="sermon" href="{escape(sermon["url"], quote=True)}">'
-            f'<img src="{thumb}" alt="" width="480" height="270" '
-            f'onerror="this.onerror=null;this.src=\'{fallback}\'">'
+            f'<img src="{thumb}" alt="" width="480" height="270">'
             f'<div><b>{escape(sermon["title"])}</b><span>{escape(meta)}</span></div></a>')
 
     if events:

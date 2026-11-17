@@ -223,6 +223,10 @@ check("page: hidden event absent", "Vision Night" in _page, False)
 check("page: no location or description", "House" in _page or "private address" in _page, False)
 check("page: sermon title escaped", "A &amp; B" in _page, True)
 check("page: links rendered", 'href="https://x/give"' in _page, True)
+_feat = build_page({"id": "abc", "title": "T", "url": "https://youtu.be/abc", "date": "2026-11-15"}, [],
+                   {"featured": {"label": "Plan your visit", "url": "https://x/visit"}}, now=_now)
+check("page: featured button sits above the sermon",
+      0 < _feat.find("Plan your visit") < _feat.find("<h2>This week"), True)
 check("page: past events dropped at render",
       "Women" in build_page(None, _picked, {}, now=datetime(2026, 11, 25, tzinfo=timezone.utc)), False)
 
