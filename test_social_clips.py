@@ -360,9 +360,19 @@ import eleven                                                   # noqa: E402
 _sent = []
 
 
+_usage = {"character_count": 2000, "character_limit": 131000}
+_scribe = {"words": [{"text": "Jesus", "type": "word", "start": 0.1, "end": 0.5},
+                     {"text": " ", "type": "spacing", "start": 0.5, "end": 0.6},
+                     {"text": "um,", "type": "word", "start": 0.6, "end": 0.9},
+                     {"text": "(laughter)", "type": "audio_event", "start": 1.0, "end": 1.5},
+                     {"text": "wept.", "type": "word", "start": 1.6, "end": 2.0}]}
+
+
 class _Resp:
     def __init__(self, req):
-        _sent.append(req)
+        self.url = req.full_url
+        if not self.url.endswith("/user/subscription"):
+            _sent.append(req)
 
     def __enter__(self):
         return self
@@ -371,9 +381,18 @@ class _Resp:
         return False
 
     def read(self):
+        if self.url.endswith("/user/subscription"):
+            return json.dumps(_usage).encode()
+        if self.url.endswith("/speech-to-text"):
+            return json.dumps(_scribe).encode()
         return b"\xff" * 4000
 
 
+def _fresh_budget():
+    eleven._first, eleven._committed = None, 0
+
+
+_fresh_budget()
 with tempfile.TemporaryDirectory() as _d, \
         mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
         mock.patch("urllib.request.urlopen", side_effect=lambda req, timeout=0: _Resp(req)):
@@ -388,6 +407,80 @@ with tempfile.TemporaryDirectory() as _d, \
     eleven.sound_effect(os.path.join(_d, "w.mp3"))
     check("sound effect: endpoint and duration", _sent[-1].full_url.endswith("/v1/sound-generation")
           and json.loads(_sent[-1].data)["duration_seconds"] == 1.0)
+    # Scribe
+    _a = os.path.join(_d, "a.mp3")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono",
+                    "-t", "60", _a], check=True)
+    _w = eleven.transcribe(_a, ["Eastpoint", "Durham", "Eastpoint"])
+    _form = _sent[-1].data
+    check("Scribe: speech-to-text endpoint, word timings", _sent[-1].full_url.endswith("/v1/speech-to-text")
+          and b'name="model_id"\r\n\r\nscribe_v2' in _form and b'name="timestamps_granularity"\r\n\r\nword' in _form)
+    check("Scribe: keyterms sent once each", _form.count(b'name="keyterms"') == 2)
+    check("Scribe: words only, verbatim (ums kept), timed",
+          _w == [{"w": "Jesus", "s": 0.1, "e": 0.5}, {"w": "um,", "s": 0.6, "e": 0.9},
+                 {"w": "wept.", "s": 1.6, "e": 2.0}])
+    eleven.isolate(_a, os.path.join(_d, "iso.mp3"))
+    check("Voice Isolator: audio-isolation endpoint, audio field",
+          _sent[-1].full_url.endswith("/v1/audio-isolation") and b'name="audio"; filename=' in _sent[-1].data)
+check("costs: Scribe 330, isolator 1000, music 900 credits a minute",
+      (eleven.per_minute("transcribe", 60), eleven.per_minute("isolate", 30), eleven.per_minute("music", 120))
+      == (330, 500, 1800))
+check("keyterms: church, city, preacher, book",
+      sc.keyterms({"preacher": "Peter Frey", "scripture": "1 John 4:7"})
+      == ["Eastpoint", "Durham", "Eastpoint Church", "Peter Frey", "1 John"])
+
+# the monthly budget: never spend past it, and fall back instead
+_fresh_budget()
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key", }), \
+        mock.patch.object(eleven, "BUDGET", 0.85), \
+        mock.patch("urllib.request.urlopen", side_effect=lambda req, timeout=0: _Resp(req)):
+    _usage.update(character_count=110000)                      # 84% of 131k used
+    _n = len(_sent)
+    try:
+        eleven.music(os.path.join(_d, "m.mp3"), 120)             # +1,800 would pass 85%
+        check("over budget: no call made", False)
+    except eleven.OverBudget:
+        check("over budget: no call made", len(_sent) == _n)
+    _bed, _ = sc.reel_sound({"n": 1}, 120.0, _d, None, False)
+    check("over budget: the reel still gets a bed (generated pad)", _bed.endswith(".wav"))
+    _usage.update(character_count=100000)
+    _fresh_budget()
+    eleven.music(os.path.join(_d, "m1.mp3"), 60)               # 900: fine
+    try:                                                        # the account still says 100k...
+        for _ in range(20):
+            eleven.music(os.path.join(_d, "m2.mp3"), 60)
+        check("the run counts its own spending", False)
+    except eleven.OverBudget:                                   # ...but this run has spent more
+        check("the run counts its own spending", eleven._committed <= 131000 * 0.85 - 100000)
+    _usage.update(character_count=2000)
+_fresh_budget()
+with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("urllib.request.urlopen", side_effect=OSError("offline")):
+    try:
+        eleven.reserve(10, "test")
+        check("usage unreadable: do not spend", False)
+    except eleven.OverBudget:
+        check("usage unreadable: do not spend", True)
+_fresh_budget()
+
+# a rerun reuses last run's isolated voice when the cut is the same
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("eleven.isolate", side_effect=AssertionError("should not be called")) as _iso:
+    _src = os.path.join(_d, "clip1t_src.mkv")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=64x64:d=3",
+                    "-f", "lavfi", "-i", "sine=f=200:d=3", "-c:v", "libx264", "-c:a", "pcm_s16le",
+                    "-shortest", _src], check=True)
+    _segs = [(0.0, 1.5), (2.0, 3.5)]
+    import hashlib as _h
+    _cut = _h.sha1(json.dumps([[0.0, 1.5], [2.0, 3.5]]).encode()).hexdigest()[:8]
+    _prev = os.path.join(_d, f"voice reel 1 {_cut}.mp3")
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=300:d=3", _prev], check=True)
+    _ok = sc.isolate_voice(_src, {"n": 1, "_voice_cache": {os.path.basename(_prev): _prev}}, _segs, _d, None)
+    check("rerun reuses the isolated voice: no new credits", _ok and not _iso.called)
+    check("isolated voice swapped into the cut, same length",
+          abs(sc.audio_seconds(_src) - 3.0) < 0.2)
 with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}):
     check("no key: ElevenLabs is skipped", not eleven.available())
     with tempfile.TemporaryDirectory() as _d:

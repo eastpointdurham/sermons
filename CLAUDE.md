@@ -15,10 +15,24 @@ Drive "Sermons" folder into a private YouTube draft, a podcast MP3, a transcript
   (brand graphics in Pillow) → ffmpeg → Drive "Social Drafts/<date> <title>": one
   version of each reel, bold and cut tight (`reel_fx.py`: pauses, ums and stumbles
   cut, punch-in zooms), with a music bed ducked under the voice and a whoosh on the
-  hook (`eleven.py`: ElevenLabs via ELEVENLABS_API_KEY; else Drive "Reel Music" via
-  SOCIAL_MUSIC_FOLDER_ID, licensed tracks only, else a generated pad). No end card,
-  no Final Cut export. Plus a Google Doc plan and plan.json. The workflow's `cut`
-  input (natural | both) and `style` in brand.json bring back the other versions.
+  hook (Drive "Reel Music" via SOCIAL_MUSIC_FOLDER_ID first, licensed tracks only,
+  else ElevenLabs, else a generated pad). No end card, no Final Cut export. Plus a
+  Google Doc plan, plan.json and transcript_words.json. The workflow's `cut` input
+  (natural | both) and `style` in brand.json bring back the other versions.
+
+## ElevenLabs (`eleven.py`, ELEVENLABS_API_KEY, Creator plan)
+- Scribe transcribes each sermon once, in the reels run (verbatim, so it also finds
+  the ums); Whisper is the fallback. `build_site.py` reads that transcript from the
+  drafts folder for the transcript doc, site and YouTube description, ahead of
+  YouTube's auto captions.
+- Voice Isolator cleans each tight reel's voice (a trace of the room mixed back in).
+- Music beds and the hook whoosh for the reels.
+- Not used on the full sermon audio (podcast MP3 / YouTube): Voice Isolator is
+  1,000 credits a minute, ~170k a month for 40-minute sermons, more than the plan.
+- Budget: every call first reads the month's usage and is skipped (with the free
+  fallback) if it would pass ELEVENLABS_BUDGET (default 0.85) of the plan. Reruns
+  reuse the week's music and isolated voice from the drafts folder: no new credits.
+  About 21k credits a week (Scribe ~16k, isolator ~3k, music ~2.5k, whoosh 200).
 
 ## Brand
 `social/brand.json` (ink #1a1a1a, off-white #f5f5f5, sage #778472; "style": bold).

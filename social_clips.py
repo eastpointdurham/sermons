@@ -280,7 +280,36 @@ def sermon_meta(service_date):
 # transcription
 # --------------------------------------------------------------------------
 
-def transcribe(video_path, workdir):
+def keyterms(meta):
+    """Words Scribe should get right: the church, the city, the preacher, the book."""
+    terms = ["Eastpoint", "Durham", "Eastpoint Church"]
+    if meta.get("preacher"):
+        terms.append(meta["preacher"])
+    book = re.match(r"\s*((?:[1-3]\s)?[A-Z][a-z]+)", meta.get("scripture", "") or "")
+    if book:
+        terms.append(book.group(1))
+    return terms
+
+
+def transcribe(video_path, workdir, meta=None):
+    """Word timings for the whole sermon: ElevenLabs Scribe when the key and the
+    month's budget allow (more accurate, and verbatim, so it also finds the ums
+    for the tight cut), else Whisper on the runner."""
+    import eleven
+    if eleven.available():
+        mp3 = os.path.join(workdir, "audio_stt.mp3")
+        try:
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video_path, "-vn", "-ac", "1",
+                            "-ar", "16000", "-b:a", "48k", mp3], check=True)
+            log("  transcribing with ElevenLabs Scribe…")
+            words = eleven.transcribe(mp3, keyterms(meta or {}))
+            os.remove(mp3)
+            if len(words) > 50:
+                log(f"  {len(words)} words (Scribe)")
+                return words
+            log("  ! Scribe returned almost nothing; using Whisper")
+        except Exception as e:
+            log(f"  ! Scribe skipped, using Whisper: {e}")
     wav = os.path.join(workdir, "audio.wav")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video_path, "-vn", "-ac", "1",
                     "-ar", "16000", wav], check=True)
@@ -682,6 +711,48 @@ def reel_sound(c, total, workdir, music, show_hook, cached=None, keep_dir=None):
     return bed, sfx
 
 
+ROOM_MIX = 0.12     # a trace of the original under the isolated voice: still a room, not a booth
+
+
+def isolate_voice(src, c, segs, workdir, keep_dir):
+    """Swap the tight cut's sound for ElevenLabs' Voice Isolator version. A rerun
+    with the same cut reuses last run's (kept in the drafts folder), so it costs no
+    credits again. Returns True when the voice was isolated."""
+    import eleven
+    import hashlib
+    cut = hashlib.sha1(json.dumps([[round(a, 2), round(b, 2)] for a, b in segs]).encode()).hexdigest()[:8]
+    name = f"voice reel {c['n']} {cut}.mp3"
+    iso = (c.get("_voice_cache") or {}).get(name)
+    if iso:
+        log("    voice: last run's ElevenLabs isolation")
+    else:
+        if not eleven.available():
+            return False
+        wav = os.path.join(workdir, f"voice{c['n']}.wav")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vn", "-ac", "1", "-ar", "48000",
+                        wav], check=True)
+        try:
+            iso = eleven.isolate(wav, os.path.join(workdir, name))
+            log("    voice: ElevenLabs Voice Isolator")
+        except Exception as e:
+            log(f"    ! voice isolation skipped, using the local clean-up: {e}")
+            return False
+        finally:
+            os.remove(wav)
+        if keep_dir:
+            import shutil
+            shutil.copy(iso, os.path.join(keep_dir, name))
+    dur = sum(b - a for a, b in segs)
+    out = src.replace(".mkv", "_iso.mkv")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-i", iso, "-filter_complex",
+                    f"[1:a]aresample=48000,aformat=channel_layouts=mono,apad[v];"
+                    f"[0:a]aresample=48000,aformat=channel_layouts=mono,volume={ROOM_MIX}[r];"
+                    f"[v][r]amix=inputs=2:duration=shortest:normalize=0,atrim=duration={dur:.3f}[a]",
+                    "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "pcm_s16le", out], check=True)
+    os.replace(out, src)
+    return True
+
+
 def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, suffix=" ({style}, tight)"):
     """The tight cut of a reel: pauses and ums out, punch-in zooms at some cuts;
     the bold look also gets a music bed under the voice and a whoosh on the hook."""
@@ -690,16 +761,20 @@ def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, su
     fps = probe_video(video)[2]
     dur = c["end"] - c["start"]
     words = c["words"]
-    try:
-        words = reel_fx.merge_fillers(words, reel_fx.find_fillers(video, c["start"], dur, workdir))
-    except Exception as e:
-        log(f"    ! verbatim pass skipped: {e}")
+    if not any(reel_fx._norm(w["w"]) in reel_fx.FILLERS for w in words):
+        try:                                    # Whisper leaves ums out; Scribe keeps them
+            words = reel_fx.merge_fillers(words, reel_fx.find_fillers(video, c["start"], dur, workdir))
+        except Exception as e:
+            log(f"    ! verbatim pass skipped: {e}")
     env = reel_fx.envelope(video, c["start"], dur)
     segs = reel_fx.tight_segments(words, c["start"], c["end"], env, fps)
     total = sum(e - s for s, e in segs)
     src = reel_fx.build_source(video, segs, os.path.join(workdir, f"clip{c['n']}t_src.mkv"))
+    isolated = isolate_voice(src, c, segs, workdir, out_dir)
     t = {k: v for k, v in c.items() if not k.startswith("_") and k not in (
         "files", "file", "reframe", "grade", "audio", "crop_center", "head_top", "layout")}
+    if isolated:                                # already clean: just the loudness step
+        t["_audio"], t["audio"] = "", {"audio": "ElevenLabs Voice Isolator"}
     t.update(_tag="t", start=0.0, end=round(total, 3), words=reel_fx.tight_words(words, segs),
              sentence_starts=[reel_fx.remap(x, segs) for x in c.get("sentence_starts", [])],
              _zoom_spans=reel_fx.zoom_spans(segs, total))
@@ -913,17 +988,21 @@ def process(drive, sermon, brand, state):
         elif os.environ.get("SOCIAL_WORDS_JSON"):       # testing: skip transcription
             words = json.load(open(os.environ["SOCIAL_WORDS_JSON"]))
         else:
-            words = transcribe(video, tmp)
+            words = transcribe(video, tmp, meta)
         sentences = sentences_from_words(words)
 
-        music_cache = {}                                # last run's ElevenLabs beds, by reel
+        music_cache, voice_cache = {}, {}               # last run's ElevenLabs audio, by reel
         if reused:
             try:
                 for f in list_folder(drive, reuse_folder):
-                    m = re.fullmatch(r"music reel (\d+)\.mp3", f["name"])
+                    m = re.fullmatch(r"(music|voice) reel (\d+)( \w+)?\.mp3", f["name"])
                     if m:
-                        music_cache[int(m.group(1))] = os.path.join(tmp, f["name"])
-                        download(drive, f["id"], music_cache[int(m.group(1))])
+                        path = os.path.join(tmp, f["name"])
+                        download(drive, f["id"], path)
+                        if m.group(1) == "music":
+                            music_cache[int(m.group(2))] = path
+                        else:
+                            voice_cache.setdefault(int(m.group(2)), {})[f["name"]] = path
             except Exception as e:
                 log(f"  ! could not fetch last run's music: {e}")
 
@@ -953,6 +1032,7 @@ def process(drive, sermon, brand, state):
         for n, c in enumerate(clips, 1):
             c["n"] = n
             c["_music_cache"] = music_cache.get(n)
+            c["_voice_cache"] = voice_cache.get(n)
             slug = re.sub(r"[^a-z0-9]+", "-", c["hook"].lower()).strip("-")[:40]
             c["files"] = {}
             if CUT == "tight":                         # the one version we post
@@ -1038,7 +1118,7 @@ def process(drive, sermon, brand, state):
         for name in sorted(os.listdir(out_dir)):
             if name.startswith("camera check"):
                 upload(drive, os.path.join(out_dir, name), name, folder, "image/jpeg")
-            elif name.startswith("music reel"):           # reused by a rerun: no new credits
+            elif name.startswith(("music reel", "voice reel")):   # reused by a rerun: no new credits
                 upload(drive, os.path.join(out_dir, name), name, folder, "audio/mpeg")
         log(f"  plan: {doc.get('webViewLink')}")
 

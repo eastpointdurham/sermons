@@ -57,11 +57,13 @@ Drive › Social Drafts › `<date> <title>`:
 - `Social plan <date>`: each reel as an option, with ready-to-use copy for Instagram,
   Facebook and YouTube Shorts. No posting schedule: post whichever fit, whenever suits.
 
-Music and the whoosh come from ElevenLabs when the repo secret `ELEVENLABS_API_KEY` is
-set (a paid ElevenLabs plan; generated music is licensed for commercial use on paid
-plans). Without it, or if a call fails, a generated pad and whoosh stand in. Licensed
+With the repo secret `ELEVENLABS_API_KEY` (a paid ElevenLabs plan), ElevenLabs
+transcribes the sermon (Scribe), cleans each reel's voice (Voice Isolator) and makes
+the music bed and whoosh. Without it, if a call fails, or if it would take the month
+past `ELEVENLABS_BUDGET` (default 0.85) of the plan's credits, the free fallbacks
+stand in: Whisper, the local audio clean-up, a generated pad and whoosh. Licensed
 tracks dropped in a Drive folder named by the `SOCIAL_MUSIC_FOLDER_ID` variable take
-priority over both.
+priority for music.
 
 ## Tuning the reels
 

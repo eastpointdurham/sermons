@@ -179,7 +179,49 @@ def get_transcript_via_youtube_api(video_id, youtube_oauth):
         return None
 
 
+def get_transcript_from_reels(video_id):
+    """The reels run's own word-by-word transcript of this sermon (ElevenLabs Scribe,
+    or Whisper when Scribe was not used), from its drafts folder in Drive. More
+    accurate than YouTube's auto captions. Ums, asides and stumbles are left out."""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        uploads = json.load(open(os.path.join(here, "uploaded_sermons.json")))
+        rec = next((u for u in uploads if u.get("video_id") == video_id), None)
+        if not rec:
+            return None
+        runs = [r for r in json.load(open(os.path.join(here, "social_clips.json")))
+                if r.get("drive_file_id") == rec.get("drive_file_id") and r.get("drafts_folder_id")]
+        if not runs:
+            return None
+        os.environ.setdefault("GOOGLE_DRIVE_REFRESH_TOKEN", os.environ.get("GOOGLE_REFRESH_TOKEN", ""))
+        import tempfile
+        import social_clips as sc
+        import reel_fx
+        drive = sc.drive_service()
+        f = next((f for f in sc.list_folder(drive, runs[-1]["drafts_folder_id"])
+                  if f["name"] == "transcript_words.json"), None)
+        if not f:
+            return None
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "words.json")
+            sc.download(drive, f["id"], path)
+            words = json.load(open(path))
+        drop = reel_fx.drop_words(words)
+        text = " ".join(w["w"] for i, w in enumerate(words) if i not in drop)
+        if len(text.split()) > 300:
+            print(f"      transcript from the reels run ({len(text.split())} words)")
+            return text
+    except Exception as e:
+        print(f"      reels transcript not used: {e}")
+    return None
+
+
 def get_transcript(video_id, youtube_oauth=None):
+    # Method 0: the reels run's transcript (ElevenLabs Scribe), when it has run
+    result = get_transcript_from_reels(video_id)
+    if result:
+        return result
+
     # Method 1: YouTube Data API (OAuth) â works from any IP including GitHub Actions
     if youtube_oauth:
         result = get_transcript_via_youtube_api(video_id, youtube_oauth)
