@@ -12,16 +12,16 @@ Drive "Sermons" folder into a private YouTube draft, a podcast MP3, a transcript
 - `social_clips.yml` → `social_clips.py`: runs after the upload workflow. Whisper
   word timings → Claude picks 2–3 clips using `social/strategy.md` → `reframe.py`
   (virtual camera: face tracking, dead-zone pan, max 2.1x upscale) → `reel_design.py`
-  (brand graphics in Pillow) → ffmpeg → Drive "Social Drafts/<date> <title>" with each
-  reel in two looks, "(editorial)" and "(bold)", plus a Google Doc plan, plan.json,
-  and a `Final Cut/` folder (`fcp_export.py`: FCPXML + .srt).
-  While we compare (`cut`: both, the default), each reel also comes "tight"
-  (`reel_fx.py`): pauses, ums and stumbles cut, punch-in zooms; the bold tight one
-  adds a music bed (Drive "Reel Music" via SOCIAL_MUSIC_FOLDER_ID, licensed tracks
-  only, else a generated pad) and a whoosh.
+  (brand graphics in Pillow) → ffmpeg → Drive "Social Drafts/<date> <title>": one
+  version of each reel, bold and cut tight (`reel_fx.py`: pauses, ums and stumbles
+  cut, punch-in zooms), with a music bed ducked under the voice and a whoosh on the
+  hook (`eleven.py`: ElevenLabs via ELEVENLABS_API_KEY; else Drive "Reel Music" via
+  SOCIAL_MUSIC_FOLDER_ID, licensed tracks only, else a generated pad). No end card,
+  no Final Cut export. Plus a Google Doc plan and plan.json. The workflow's `cut`
+  input (natural | both) and `style` in brand.json bring back the other versions.
 
 ## Brand
-`social/brand.json` (ink #1a1a1a, off-white #f5f5f5, sage #778472; "style": both).
+`social/brand.json` (ink #1a1a1a, off-white #f5f5f5, sage #778472; "style": bold).
 Oakes Grotesk is licensed: fonts are downloaded at run time from a private Drive folder
 (`SOCIAL_FONTS_FOLDER_ID`). Never commit font files; this repo is public.
 Sunburst mark: `social/sunburst.svg`.
@@ -40,7 +40,7 @@ online; that list is kept privately, never in this repo. Ask Peter before adding
 ## Secrets
 GOOGLE_CLIENT_ID/SECRET (OAuth client "Eastpoint Sermons", Desktop, project
 silver-ivy-500800-m9, Internal), GOOGLE_DRIVE_REFRESH_TOKEN (= GOOGLE_REFRESH_TOKEN),
-GOOGLE_YOUTUBE_REFRESH_TOKEN, ANTHROPIC_API_KEY, YOUTUBE_API_KEY.
+GOOGLE_YOUTUBE_REFRESH_TOKEN, ANTHROPIC_API_KEY, YOUTUBE_API_KEY, ELEVENLABS_API_KEY.
 Mint tokens with `python3 get_refresh_token.py drive|youtube`.
 
 ## Rules

@@ -13,11 +13,6 @@ import social_clips as sc
 PASS = FAIL = 0
 
 
-def Fraction_ok(v):
-    from fractions import Fraction
-    return float(Fraction(v.rstrip("s") or "0"))
-
-
 def check(name, cond):
     global PASS, FAIL
     if cond:
@@ -84,13 +79,12 @@ try:
 except ValueError:
     check("parse raises", True)
 
-# design + Final Cut handoff --------------------------------------------------
+# design ----------------------------------------------------------------------
 import tempfile
 import reel_design as rd
-import fcp_export as fx
 brand = json.load(open(sc.BRAND_FILE))
 fonts = sc.FONTS_DIR
-clip = {"n": 1, "start": 10.0, "end": 20.0, "hook": "Hope is here", "scripture": "Luke 18:1-8 NIV",
+clip = {"n": 1, "start": 10.0, "end": 20.0, "hook": "Hope has a name", "scripture": "Luke 18:1-8 NIV",
         "why": "x", "layout": "fill", "crop_center": 0.46, "sentence_starts": [10.0, 14.0],
         "words": words_from("Hope is not wishful thinking. It is a person.", 10.0)}
 with tempfile.TemporaryDirectory() as tmp:
@@ -125,8 +119,18 @@ with tempfile.TemporaryDirectory() as tmp:
           rd.CAP_SIZE > rd.EDITORIAL_CAP_SIZE >= 54)
     ed_frame = rd.editorial_caption_frame(["Hope", "is", "here"], brand, fonts, 1290)
     check("editorial caption frame draws something", ed_frame.getbbox() is not None)
-    card = rd.make_end_card(brand, fonts, os.path.join(tmp, "e.png"))
-    check("end card ink background", Image.open(card).getpixel((20, 20)) == (26, 26, 26))
+    # the hook sits below Instagram's top bar, and only when it adds something
+    rows_top = [y for y in range(0, 1920, 4)
+                if any(im.getpixel((x, y))[:3] == tuple(int(brand["offwhite"].lstrip("#")[i:i + 2], 16)
+                                                        for i in (0, 2, 4)) and im.getpixel((x, y))[3] == 255
+                       for x in range(100, 980, 6))]
+    check("hook text starts below Instagram's top bar", rows_top and min(rows_top) >= rd.HOOK_TOP - 10)
+    check("hook shown when it adds to the opening words", rd.shows_hook(clip))
+    check("no hook when he opens by saying it", not rd.shows_hook(dict(clip, hook="Hope is not wishful")))
+    check("no hook without one", not rd.shows_hook(dict(clip, hook="")))
+    plain = rd.make_overlay(dict(clip, hook="Hope is not wishful"), brand, "fill", fonts,
+                            os.path.join(tmp, "o3.png"))
+    check("no hook: no banner shade at the top", Image.open(plain).getpixel((540, 60))[3] == 0)
     b = rd.brush_stroke(600, 12, brand["sage"], seed=1)
     check("brush stroke drawn", b.width > 500 and b.getbbox() is not None)
     # Line breaks depend on the font (Oakes Grotesk in CI, Archivo/DejaVu elsewhere),
@@ -138,23 +142,6 @@ with tempfile.TemporaryDirectory() as tmp:
           " ".join(wrapped) == hook
           and len(wrapped) == len(rd.wrap_words(hook.split(), hf, rd.HOOK_MAX_W))
           and all(rd.text_width(l, hf) <= rd.HOOK_MAX_W for l in wrapped))
-
-    fcpx = fx.build_fcpxml("Sermon-9-20-26.mov", fx.media_url_for("Sermon-9-20-26.mov"), 2086.6, 24,
-                          1920, 1080, [clip], brand, "Oakes Grotesk", sc.caption_chunks, "Reels")
-    from xml.dom import minidom
-    dom = minidom.parseString(fcpx.encode())
-    check("fcpxml well formed", dom.documentElement.tagName == "fcpxml")
-    ac = dom.getElementsByTagName("asset-clip")[0]
-    check("clip starts at source time", ac.getAttribute("start") == "10s" or ac.getAttribute("start") == "240/24s" or ac.getAttribute("start") == "10/1s")
-    check("clip duration 10s", ac.getAttribute("duration") in ("10s", "10/1s", "240/24s"))
-    titles = dom.getElementsByTagName("title")
-    check("hook + scripture + captions", len(titles) == 2 + len(sc.caption_chunks(clip["words"])))
-    check("titles anchored in source time", all(Fraction_ok(t.getAttribute("offset")) >= 10 for t in titles))
-    check("vertical format", 'width="1080" height="1920"' in fcpx)
-    check("markers at sentences", len(dom.getElementsByTagName("marker")) == 1)
-    srt = os.path.join(tmp, "a.srt")
-    fx.write_srt(clip, sc.caption_chunks(clip["words"]), srt)
-    check("srt starts at zero-based time", open(srt).read().startswith("1\n00:00:00,"))
 
 # find_new_sermons ----------------------------------------------------------------------
 today = date.today()
@@ -367,6 +354,51 @@ with _wave.open(_wav) as _f:
 rfx.sfx_track(_wav, 2.0, at=(0.0,))
 with _wave.open(_wav) as _f:
     check("sfx track the right length", round(_f.getnframes() / 48000, 1) == 2.0)
+
+# ElevenLabs music and sound effects -------------------------------------------
+import eleven                                                   # noqa: E402
+_sent = []
+
+
+class _Resp:
+    def __init__(self, req):
+        _sent.append(req)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return b"\xff" * 4000
+
+
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("urllib.request.urlopen", side_effect=lambda req, timeout=0: _Resp(req)):
+    eleven.music(os.path.join(_d, "m.mp3"), 61.4, "gospel")
+    _body = json.loads(_sent[-1].data)
+    check("music: compose endpoint, key header", _sent[-1].full_url.endswith("/v1/music")
+          and _sent[-1].get_header("Xi-api-key") == "test-key")
+    check("music: instrumental, reel length", _body["force_instrumental"] is True
+          and _body["music_length_ms"] == 61400 and "No drums, no vocals" in _body["prompt"])
+    check("music: at least 3 s", json.loads((eleven.music(os.path.join(_d, "m2.mp3"), 1.0), _sent[-1].data)[1])
+          ["music_length_ms"] == 3000)
+    eleven.sound_effect(os.path.join(_d, "w.mp3"))
+    check("sound effect: endpoint and duration", _sent[-1].full_url.endswith("/v1/sound-generation")
+          and json.loads(_sent[-1].data)["duration_seconds"] == 1.0)
+with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}):
+    check("no key: ElevenLabs is skipped", not eleven.available())
+    with tempfile.TemporaryDirectory() as _d:
+        _bed, _sfx = sc.reel_sound({"n": 1}, 4.0, _d, None, True)
+        check("no key: the generated pad and whoosh stand in", _bed.endswith(".wav") and _sfx.endswith(".wav"))
+with tempfile.TemporaryDirectory() as _d, \
+        mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
+        mock.patch("eleven.music", side_effect=RuntimeError("HTTP 401")), \
+        mock.patch("eleven.sound_effect", side_effect=RuntimeError("HTTP 401")):
+    _bed, _sfx = sc.reel_sound({"n": 1}, 4.0, _d, None, True)
+    check("ElevenLabs failing never loses a reel", os.path.exists(_bed) and os.path.exists(_sfx))
 
 # lengthening a reel ---------------------------------------------------------------
 _ss = [{"a": i, "b": i, "start": i * 5.0, "end": i * 5.0 + 4.6, "text": f"Sentence {i}" + ("," if i == 9 else ".")}

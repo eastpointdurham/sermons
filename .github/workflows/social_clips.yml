@@ -42,9 +42,9 @@ on:
         required: false
         default: ""
       cut:
-        description: "natural, tight (pauses and ums out, zooms, music) or both"
+        description: "tight (pauses and ums out, zooms, music; what we post), natural or both"
         required: false
-        default: "both"
+        default: "tight"
 
 permissions:
   contents: write        # to commit social_clips.json
@@ -103,7 +103,8 @@ jobs:
           SOCIAL_EXTEND_TO: ${{ github.event.inputs.extend_to || '88' }}
           SOCIAL_START_AT: ${{ github.event.inputs.start_at }}
           SOCIAL_END_AT: ${{ github.event.inputs.end_at }}
-          SOCIAL_CUT: ${{ github.event.inputs.cut || vars.SOCIAL_CUT || 'both' }}
+          SOCIAL_CUT: ${{ github.event.inputs.cut || vars.SOCIAL_CUT || 'tight' }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           SOCIAL_MUSIC_FOLDER_ID: ${{ vars.SOCIAL_MUSIC_FOLDER_ID }}
           WHISPER_MODEL: small.en
         run: python social_clips.py

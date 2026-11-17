@@ -349,10 +349,17 @@ def whoosh(dur=0.7, seed=1):
     return np.stack([sw * (1 - 0.4 * t), sw * (0.6 + 0.4 * t)], axis=1)  # moves left to right
 
 
-def sfx_track(path, dur, at=(), level=0.35):
-    """A track of silence with a whoosh at each time in `at`."""
+def load_audio(path):
+    """Any audio file as a float stereo array at RATE (for an ElevenLabs mp3)."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "2", "-ar", str(RATE),
+                          "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, "<f4").reshape(-1, 2).astype(np.float64)
+
+
+def sfx_track(path, dur, at=(), level=0.35, sample=None):
+    """A track of silence with a whoosh (or `sample`, a stereo array) at each time in `at`."""
     out = np.zeros((int(dur * RATE), 2))
-    w = whoosh() * level
+    w = (sample / (np.abs(sample).max() + 1e-9) if sample is not None else whoosh()) * level
     for t in at:
         i = int(t * RATE)
         j = min(len(out), i + len(w))

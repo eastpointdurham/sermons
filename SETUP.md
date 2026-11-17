@@ -48,17 +48,20 @@ Actions › **New repository secret**. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET
 ## What each Sunday produces
 
 Drive › Social Drafts › `<date> <title>`:
-- `<date> reel N - <hook>.mp4`: finished drafts, 1080×1920, in the brand look (ink
-  scrims, sage sunburst, Oakes Grotesk hook with a sage brush underline, live captions
-  with the spoken word on a sage highlight, ink end card). Encoded high (CRF 16) so
-  Instagram's recompression has the most to work with.
+- `<date> reel N - <hook>.mp4`: finished drafts, 1080×1920, cut tight (long pauses,
+  ums and stumbles out, a punch-in zoom at some cuts) in the bold brand look: the hook
+  on screen for the first 2.5 s (below Instagram's top bar; left out when his opening
+  words already say it), live captions with the spoken word on a sage highlight, and a
+  soft music bed ducked under the voice. No end card: a reel loops, so it ends on the
+  last word. Encoded high (CRF 16) so Instagram's recompression has the most to work with.
 - `Social plan <date>`: each reel as an option, with ready-to-use copy for Instagram,
   Facebook and YouTube Shorts. No posting schedule: post whichever fit, whenever suits.
-- `Final Cut/<date> reels.fcpxml`: one vertical project per reel, cut from the original
-  recording at full quality, with the crop, hook, scripture and caption titles and
-  sentence markers. Import it (File › Import › XML), point Final Cut at the sermon file
-  when asked (File › Relink Files), polish, and export. `.srt` caption files sit
-  alongside for YouTube or Facebook.
+
+Music and the whoosh come from ElevenLabs when the repo secret `ELEVENLABS_API_KEY` is
+set (a paid ElevenLabs plan; generated music is licensed for commercial use on paid
+plans). Without it, or if a call fails, a generated pad and whoosh stand in. Licensed
+tracks dropped in a Drive folder named by the `SOCIAL_MUSIC_FOLDER_ID` variable take
+priority over both.
 
 ## Tuning the reels
 

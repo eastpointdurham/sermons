@@ -17,6 +17,7 @@ Outputs used by social_clips.py:
 import math
 import os
 import random
+import re
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -244,14 +245,14 @@ def vertical_scrim(height, color_hex, top_alpha, bottom_alpha):
 
 HOOK_SIZE = 76
 HOOK_MAX_W = 900
-HOOK_SECONDS = 3.5       # (bold) the hook banner fades out after this, off the speaker's face
+HOOK_SECONDS = 2.5       # (bold) on screen just long enough to read, then off the speaker's face
+HOOK_TOP = 250           # below Instagram's own top bar ("Reels", camera), which covers ~220 px
 HOOK_FADE = 0.6
 CAP_SIZE = 82
 CAP_MAX_W = 940
 
 
 HOOK_VARIANTS = (                # tried in order until the hook clears the speaker's head
-    {"mark": True, "scripture": True, "size": HOOK_SIZE},
     {"mark": False, "scripture": True, "size": HOOK_SIZE},
     {"mark": False, "scripture": False, "size": HOOK_SIZE},
     {"mark": False, "scripture": False, "size": 62},
@@ -263,7 +264,7 @@ def draw_hook(canvas, clip, brand, fonts_dir, v):
     onto canvas, or just measure it when canvas is None. Returns its bottom y."""
     white, sage = brand["offwhite"], brand["sage"]
     d = ImageDraw.Draw(canvas) if canvas is not None else None
-    y = 92
+    y = HOOK_TOP
     if v["mark"]:
         sb = sunburst(132, sage)
         if canvas is not None:
@@ -294,6 +295,21 @@ def draw_hook(canvas, clip, brand, fonts_dir, v):
     return y
 
 
+def _words(text):
+    return [w for w in re.sub(r"[^a-z0-9' ]", " ", text.lower()).split() if w]
+
+
+def shows_hook(clip):
+    """Whether the bold reel opens with the hook on screen. Not when the first
+    words he says already are the hook: the captions say it anyway, and two
+    lines of the same text to read at once is clutter."""
+    hook = _words(clip.get("hook", ""))
+    if not hook:
+        return False
+    opening = _words(" ".join(w["w"] for w in clip.get("words", [])[:len(hook) + 4]))
+    return len(set(hook) & set(opening)) / len(set(hook)) < 0.6
+
+
 def hook_variant(clip, brand, fonts_dir, layout):
     """The fullest hook block that ends above the speaker's head (fill layout,
     when the camera reported where the head is); else the smallest one."""
@@ -320,11 +336,14 @@ def make_overlay(clip, brand, layout, fonts_dir, out_path, style="bold"):
         canvas.save(out_path)
         return out_path
 
+    hook = shows_hook(clip)
     if layout == "fill":
-        canvas.alpha_composite(vertical_scrim(720, ink, 235, 0), (0, 0))
+        if hook:
+            canvas.alpha_composite(vertical_scrim(720, ink, 235, 0), (0, 0))
         canvas.alpha_composite(vertical_scrim(760, ink, 0, 200), (0, H - 760))
 
-    draw_hook(canvas, clip, brand, fonts_dir, hook_variant(clip, brand, fonts_dir, layout))
+    if hook:
+        draw_hook(canvas, clip, brand, fonts_dir, hook_variant(clip, brand, fonts_dir, layout))
 
     canvas.save(out_path)
     return out_path
@@ -410,7 +429,7 @@ def caption_y(clip, brand, fonts_dir, layout, style="bold"):
         default, block = (1330 if layout == "fill" else 1560), 2 * int(CAP_SIZE * 1.3)
         top = (draw_hook(None, clip, brand, fonts_dir,
                          hook_variant(clip, brand, fonts_dir, layout)) + 50
-               if clip.get("hook") else 120)
+               if shows_hook(clip) else EDITORIAL_TOP)
     head = clip.get("head_top")
     if layout != "fill" or head is None:
         return default
@@ -461,50 +480,3 @@ def caption_track(clip, chunks, brand, fonts_dir, layout, workdir, style="bold")
         fh.write(f"file '{blank}'\nduration {max(0.05, dur - t + 0.5):.3f}\n")
         fh.write(f"file '{blank}'\n")
     return lst
-
-
-# --------------------------------------------------------------------------
-# end card
-# --------------------------------------------------------------------------
-
-def make_end_card(brand, fonts_dir, out_path, style="bold"):
-    ink, white, sage = brand["ink"], brand["offwhite"], brand["sage"]
-    img = Image.new("RGBA", (W, H), hex_rgb(ink) + (255,))
-    d = ImageDraw.Draw(img)
-    if style == "editorial":
-        sb = sunburst(150, sage)
-        img.alpha_composite(sb, ((W - sb.width) // 2, 800))
-        fw = font("medium", 34, fonts_dir)
-        for i, (txt, tr, a) in enumerate([("EASTPOINT CHURCH", 12, 255),
-                                          ("SUNDAYS AT 10AM  \u00b7  EAST DURHAM", 6, 200)]):
-            tw = text_width(txt, fw, tr)
-            draw_tracked(d, (W - tw) / 2, 1010 + i * 62, txt, fw, hex_rgb(white) + (a,), tr)
-        img.convert("RGB").save(out_path)
-        return out_path
-    y = 640
-    sb = sunburst(300, sage)
-    img.alpha_composite(sb, ((W - sb.width) // 2, y))
-    y += sb.height + 60
-
-    f = font("bold", 104, fonts_dir)
-    for line in ("SUNDAYS", "AT 10AM"):
-        lw = text_width(line, f)
-        d.text(((W - lw) / 2, y + f.getmetrics()[0]), line, font=f, fill=hex_rgb(white), anchor="ls")
-        y += int(104 * 1.0)
-    y += 40
-    br = brush_stroke(620, 13, sage, seed=3)
-    img.alpha_composite(br, ((W - br.width) // 2, y))
-    y += br.height + 70
-
-    fw = font("medium", 34, fonts_dir)
-    word = "EASTPOINT CHURCH"
-    tw = text_width(word, fw, 12)
-    draw_tracked(d, (W - tw) / 2, y + 30, word, fw, hex_rgb(white), 12)
-    y += 90
-    fr = font("regular", 34, fonts_dir)
-    for line in brand["end_card"][2:]:
-        lw = text_width(line, fr)
-        d.text(((W - lw) / 2, y + 30), line, font=fr, fill=hex_rgb(white) + (205,), anchor="ls")
-        y += 52
-    img.convert("RGB").save(out_path)
-    return out_path
