@@ -9,6 +9,10 @@ Drive "Sermons" folder into a private YouTube draft, a podcast MP3, a transcript
   Skips recordings dated before `UPLOAD_SINCE` (repo variable, default 2026-10-04).
 - `update_sermons.yml` (hourly) → `build_site.py`, `create_drive_docs.py`,
   `enrich_descriptions.py`: transcripts, archive site, YouTube descriptions.
+  Also `/latest` (forwards to the newest public sermon) and `/links` (`links_page.py`:
+  link-in-bio page with this week's sermon, upcoming public Church Center events, and
+  the buttons in `links.json`). Events need PCO_APP_ID/PCO_SECRET; `events.json` keeps
+  only name, times and Church Center link (no locations: public repo).
 - `social_clips.yml` → `social_clips.py`: runs after the upload workflow. Whisper
   word timings → Claude picks 2–3 clips using `social/strategy.md` → `reframe.py`
   (virtual camera: face tracking, dead-zone pan, max 2.1x upscale) → `reel_design.py`
@@ -53,7 +57,8 @@ online; that list is kept privately, never in this repo. Ask Peter before adding
 ## Secrets
 GOOGLE_CLIENT_ID/SECRET (OAuth client "Eastpoint Sermons", Desktop, project
 silver-ivy-500800-m9, Internal), GOOGLE_DRIVE_REFRESH_TOKEN (= GOOGLE_REFRESH_TOKEN),
-GOOGLE_YOUTUBE_REFRESH_TOKEN, ANTHROPIC_API_KEY, YOUTUBE_API_KEY, ELEVENLABS_API_KEY.
+GOOGLE_YOUTUBE_REFRESH_TOKEN, ANTHROPIC_API_KEY, YOUTUBE_API_KEY, ELEVENLABS_API_KEY,
+PCO_APP_ID/PCO_SECRET (Planning Center personal access token, links page events).
 Mint tokens with `python3 get_refresh_token.py drive|youtube`.
 
 ## Rules

@@ -169,6 +169,63 @@ check("latest: built from public list has no draft",
       "bbb" in build_latest_html([dict(v, date="2026-08-18") for v in pub]), False)
 check("latest: empty archive falls back to archive", 'url=../"' in build_latest_html([]), True)
 
+# --- links page: only public Church Center events reach this public repo ----
+from datetime import datetime, timezone  # noqa: E402
+from links_page import pick_events, build_page, when  # noqa: E402
+
+
+def _inst(iid, eid, name, start, end, recur="Does not repeat", all_day=False):
+    return {"id": iid, "attributes": {
+        "name": name, "starts_at": start, "ends_at": end, "all_day_event": all_day,
+        "compact_recurrence_description": recur, "location": "Someone's House",
+        "church_center_url": f"https://cc.example/calendar/event/{iid}"},
+        "relationships": {"event": {"data": {"type": "Event", "id": eid}}}}
+
+
+def _ev(eid, name, visible=True, link_only=False, status="A"):
+    return {"type": "Event", "id": eid, "attributes": {
+        "name": name, "visible_in_church_center": visible, "link_only": link_only,
+        "approval_status": status, "description": "<p>private address here</p>"}}
+
+
+_api = {
+    "data": [
+        _inst("1", "w", "Women's Gathering", "2026-11-21T00:00:00Z", "2026-11-21T02:00:00Z"),
+        _inst("2", "s", "Sunday Celebration", "2026-11-22T15:00:00Z", "2026-11-22T16:15:00Z", "Every Sunday"),
+        _inst("3", "h", "Members Vision Night", "2026-11-23T21:00:00Z", "2026-11-23T23:00:00Z"),
+        _inst("4", "s", "Advent Begins - Sunday Celebration", "2026-11-29T15:00:00Z", "2026-11-29T16:15:00Z", "Every Sunday"),
+        _inst("5", "l", "Link-only Thing", "2026-11-30T15:00:00Z", "2026-11-30T16:00:00Z"),
+        _inst("6", "p", "Pending Thing", "2026-12-01T15:00:00Z", "2026-12-01T16:00:00Z"),
+        _inst("7", "y", "Youth Party", "2026-12-06T05:00:00Z", "2026-12-07T04:59:59Z", all_day=True),
+        _inst("8", "f", "Far Future", "2027-06-01T15:00:00Z", "2027-06-01T16:00:00Z"),
+    ],
+    "included": [_ev("w", "Women's Gathering"), _ev("s", "Sunday Celebration"),
+                 _ev("h", "Members Vision Night", visible=False),
+                 _ev("l", "Link-only Thing", link_only=True),
+                 _ev("p", "Pending Thing", status="P"), _ev("y", "Youth Party"),
+                 _ev("f", "Far Future")],
+}
+_now = datetime(2026, 11, 17, 12, tzinfo=timezone.utc)
+_picked = pick_events(_api, now=_now)
+check("events: only public, upcoming, non-weekly",
+      [e["name"] for e in _picked],
+      ["Women's Gathering", "Advent Begins - Sunday Celebration", "Youth Party"])
+check("events: nothing but name, times and link stored",
+      sorted({k for e in _picked for k in e}), ["all_day", "ends_at", "name", "starts_at", "url"])
+check("events: time shown in Durham time", when(_picked[0]), "Fri, Nov 20 · 7pm")
+check("events: all-day shows date only", when(_picked[2]), "Sun, Dec 6")
+
+_page = build_page({"id": "abc", "title": "A & B", "url": "https://youtu.be/abc",
+                    "scripture": "Mark 1", "preacher": "Peter Frey", "date": "2026-11-15"},
+                   _picked, {"sunday": "Sundays at 10am", "links": [{"label": "Give", "url": "https://x/give"}]},
+                   now=_now)
+check("page: hidden event absent", "Vision Night" in _page, False)
+check("page: no location or description", "House" in _page or "private address" in _page, False)
+check("page: sermon title escaped", "A &amp; B" in _page, True)
+check("page: links rendered", 'href="https://x/give"' in _page, True)
+check("page: past events dropped at render",
+      "Women" in build_page(None, _picked, {}, now=datetime(2026, 11, 25, tzinfo=timezone.utc)), False)
+
 if __name__ == "__main__":
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)

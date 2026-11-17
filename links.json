@@ -1,0 +1,13 @@
+{
+  "_note": "Buttons on the links page (eastpointdurham.github.io/sermons/links/), top to bottom. This sits above them automatically: this week's sermon, Sunday times and upcoming Church Center events. Edit labels/URLs here; the page rebuilds within the hour.",
+  "sunday": "Sundays at 10am · 3810 Wake Forest Hwy, Durham",
+  "links": [
+    {"label": "Plan a visit", "url": "https://www.eastpointdurham.com/visit"},
+    {"label": "Connect with us", "url": "https://eastpoint-durham-507747.churchcenter.com/people/forms/1045110"},
+    {"label": "Give", "url": "https://eastpointdurham.com/give"},
+    {"label": "All sermons", "url": "https://eastpointdurham.github.io/sermons/"},
+    {"label": "Watch on YouTube", "url": "https://www.youtube.com/@EastpointDurham"},
+    {"label": "Submit a prayer request", "url": "https://eastpoint-durham-507747.churchcenter.com/people/forms/1315909"},
+    {"label": "Find us on Google Maps", "url": "https://maps.app.goo.gl/BJQMh2Xw4YgzpaBGA"}
+  ]
+}
