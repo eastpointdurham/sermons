@@ -59,9 +59,9 @@ Drive › Social Drafts › `<date> <title>`:
 
 With the repo secret `ELEVENLABS_API_KEY` (a paid ElevenLabs plan), ElevenLabs
 transcribes the sermon (Scribe), cleans each reel's voice (Voice Isolator) and makes
-the music bed and whoosh. Without it, if a call fails, or if it would take the month
+the music bed. Without it, if a call fails, or if it would take the month
 past `ELEVENLABS_BUDGET` (default 0.85) of the plan's credits, the free fallbacks
-stand in: Whisper, the local audio clean-up, a generated pad and whoosh. Licensed
+stand in: Whisper, the local audio clean-up, a generated pad. Licensed
 tracks dropped in a Drive folder named by the `SOCIAL_MUSIC_FOLDER_ID` variable take
 priority for music.
 

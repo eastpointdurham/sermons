@@ -1,9 +1,9 @@
 """ElevenLabs for the sermon pipeline (ELEVENLABS_API_KEY): Scribe transcription,
-Voice Isolator for the reels' voice, and the reels' music bed and whoosh.
+Voice Isolator for the reels' voice, and the reels' music bed.
 
 Everything here is optional: with no key, if a call fails, or if it would take the
 month's usage past the budget, the caller falls back (Whisper, the local audio
-clean-up, the generated pad and whoosh), so a week is never lost.
+clean-up, the generated pad), so a week is never lost.
 
 The budget: before each call, the account's own usage for the month is read, and
 the call goes ahead only if usage plus its cost stays within ELEVENLABS_BUDGET
@@ -24,7 +24,6 @@ TIMEOUT = 600
 
 # credits, from ElevenLabs' pricing page (2026-11): per minute of audio, or per generation
 COST_PER_MIN = {"transcribe": 330, "isolate": 1000, "music": 900}
-COST_SFX = 200
 KEYTERMS_SURCHARGE = 1.2
 BUDGET = float(os.environ.get("ELEVENLABS_BUDGET", "0.85"))
 STT_MODEL = os.environ.get("ELEVENLABS_STT_MODEL", "scribe_v2")
@@ -38,7 +37,6 @@ MOODS = {"gospel": "warm, hopeful and tender",
          "challenge": "quietly determined, with gentle forward motion",
          "story": "reflective and intimate",
          "teaching": "calm, clear and thoughtful"}
-WHOOSH_PROMPT = "soft, subtle airy whoosh, a gentle swish for a title appearing, clean, no reverb tail"
 
 
 class OverBudget(RuntimeError):
@@ -163,12 +161,6 @@ def music(out_path, seconds, kind=""):
     prompt = MUSIC_PROMPT.format(mood=MOODS.get(kind, MOODS["gospel"]))
     return _post_json("/music", {"prompt": prompt, "music_length_ms": int(seconds * 1000),
                                  "force_instrumental": True}, out_path)
-
-
-def sound_effect(out_path, text=WHOOSH_PROMPT, seconds=1.0):
-    reserve(COST_SFX, "sound effect")
-    return _post_json("/sound-generation", {"text": text, "duration_seconds": seconds,
-                                            "prompt_influence": 0.5}, out_path)
 
 
 def isolate(in_path, out_path):

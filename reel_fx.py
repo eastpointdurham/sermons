@@ -5,8 +5,7 @@
   endings are never clipped
 - a punch-in zoom at some cuts (every few seconds at most), so the jump cuts read
   as edits rather than glitches
-- optionally a soft music bed, ducked under the voice, and a whoosh as the hook
-  appears. The music is from Drive "Reel Music" when that folder has tracks
+- optionally a soft music bed, ducked under the voice. The music is from Drive "Reel Music" when that folder has tracks
   (only add tracks licensed for social use), otherwise a generated pad.
 
 Whisper leaves most ums out of its transcript, so find_fillers() runs a second,
@@ -30,7 +29,7 @@ MIN_SEG = 0.5        # a sliver of speech between two cuts looks like a glitch..
 MAX_RESTORE = 0.35   # ...so a pause up to this long beside it is put back
 ZOOM = 1.12          # punch-in
 ZOOM_EVERY = 3.0     # seconds, at least, between zoom changes
-MUSIC_DB = -24       # music bed level under the voice, before ducking
+MUSIC_DB = -20       # music bed level under the voice, before ducking
 VERBATIM_PROMPT = "Um, so, uh, I was like, you know, um, thinking. Uh, yeah, hmm."
 
 
@@ -273,7 +272,7 @@ def find_fillers(video, start, dur, workdir, model_name="small.en"):
 
 
 # --------------------------------------------------------------------------
-# sound: music bed and whoosh (generated, so there is nothing to license)
+# sound: the fallback music bed (generated, so there is nothing to license)
 # --------------------------------------------------------------------------
 
 RATE = 48000
@@ -334,35 +333,3 @@ def music_bed(path, dur, seed=0, chord_s=4.0):
     out *= edge[:, None]
     out /= np.abs(out).max() + 1e-9
     return _write_wav(path, out * 0.5)
-
-
-def whoosh(dur=0.7, seed=1):
-    """Filtered noise rising then falling: a soft swish."""
-    rng = np.random.default_rng(seed)
-    n = int(dur * RATE)
-    t = np.linspace(0, 1, n)
-    env = np.sin(np.pi * t ** 0.7) ** 2
-    x = rng.standard_normal(n) * env
-    lo = _lowpass(x, 2500)
-    sw = lo - _lowpass(lo, 300)                   # band-passed
-    sw /= np.abs(sw).max() + 1e-9
-    return np.stack([sw * (1 - 0.4 * t), sw * (0.6 + 0.4 * t)], axis=1)  # moves left to right
-
-
-def load_audio(path):
-    """Any audio file as a float stereo array at RATE (for an ElevenLabs mp3)."""
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "2", "-ar", str(RATE),
-                          "-f", "f32le", "-"], capture_output=True, check=True).stdout
-    return np.frombuffer(raw, "<f4").reshape(-1, 2).astype(np.float64)
-
-
-def sfx_track(path, dur, at=(), level=0.35, sample=None):
-    """A track of silence with a whoosh (or `sample`, a stereo array) at each time in `at`."""
-    out = np.zeros((int(dur * RATE), 2))
-    w = (sample / (np.abs(sample).max() + 1e-9) if sample is not None else whoosh()) * level
-    for t in at:
-        i = int(t * RATE)
-        j = min(len(out), i + len(w))
-        if 0 <= i < j:
-            out[i:j] += w[:j - i]
-    return _write_wav(path, out)

@@ -621,16 +621,16 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
               "-f", "concat", "-safe", "0", "-i", captions,
               "-ss", f"{clip['start']:.3f}", "-t", f"{dur:.3f}", "-i", video_path]
     finish = "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000"
-    if style in clip.get("_sound_styles", ()):     # music bed ducked under the voice, plus whoosh
+    if style in clip.get("_sound_styles", ()):     # music bed ducked under the voice
         import reel_fx
-        inputs += ["-i", clip["_music"], "-i", clip["_sfx"]]
+        inputs += ["-i", clip["_music"]]
         fade = max(dur - 0.8, 0)
         graph += (f";[3:a]{clip['_audio'] or 'anull'},asplit[v1][v2];"
                   f"[4:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,"
                   f"atrim=duration={dur:.3f},afade=t=out:st={fade:.3f}:d=0.8,"
                   f"volume={reel_fx.MUSIC_DB}dB[m];"
                   f"[m][v1]sidechaincompress=threshold=0.02:ratio=6:attack=30:release=700[md];"
-                  f"[v2][md][5:a]amix=inputs=3:duration=first:normalize=0,{finish}[aout]")
+                  f"[v2][md]amix=inputs=2:duration=first:normalize=0,{finish}[aout]")
         audio_map = ["-map", "[aout]"]
     else:
         audio_map = ["-map", "3:a:0", "-af", ",".join(f for f in (clip["_audio"], finish) if f)]
@@ -673,9 +673,10 @@ def audio_seconds(path):
     return float(out or 0)
 
 
-def reel_sound(c, total, workdir, music, show_hook, cached=None, keep_dir=None):
-    """(music bed, sfx track) for a reel: Drive "Reel Music" if it has a track, else
-    ElevenLabs, else the generated pad; the whoosh likewise. Never fails a reel.
+def reel_sound(c, total, workdir, music, cached=None, keep_dir=None):
+    """The music bed for a reel: Drive "Reel Music" if it has a track, else
+    ElevenLabs, else the generated pad. Never fails a reel. (No whoosh: it drew
+    attention away from the opening line.)
     A rerun reuses the bed this reel had last time (`cached`) when it is still long
     enough, so remaking a week's reels costs no more ElevenLabs credits; a new
     ElevenLabs bed is copied to `keep_dir` to go into the drafts folder for that."""
@@ -696,19 +697,7 @@ def reel_sound(c, total, workdir, music, show_hook, cached=None, keep_dir=None):
             log(f"    ! ElevenLabs music failed, using the generated pad: {e}")
     if not bed:
         bed = reel_fx.music_bed(os.path.join(workdir, f"bed{c['n']}.wav"), total + 1, c["n"])
-    sample = None
-    if show_hook and eleven.available():
-        path = os.path.join(workdir, "whoosh.mp3")
-        try:
-            if not os.path.exists(path):
-                eleven.sound_effect(path)
-                log("    whoosh: ElevenLabs")
-            sample = reel_fx.load_audio(path)
-        except Exception as e:
-            log(f"    ! ElevenLabs sound effect failed, using the generated whoosh: {e}")
-    sfx = reel_fx.sfx_track(os.path.join(workdir, f"sfx{c['n']}.wav"), total + 1,
-                            at=(0.0,) if show_hook else (), sample=sample)
-    return bed, sfx
+    return bed
 
 
 ROOM_MIX = 0.12     # a trace of the original under the isolated voice: still a room, not a booth
@@ -755,7 +744,7 @@ def isolate_voice(src, c, segs, workdir, keep_dir):
 
 def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, suffix=" ({style}, tight)"):
     """The tight cut of a reel: pauses and ums out, punch-in zooms at some cuts;
-    the bold look also gets a music bed under the voice and a whoosh on the hook."""
+    the bold look also gets a music bed under the voice."""
     import reel_fx
     import reel_design as rd
     fps = probe_video(video)[2]
@@ -780,8 +769,7 @@ def render_tight(video, c, brand, styles, out_dir, workdir, base_name, music, su
              _zoom_spans=reel_fx.zoom_spans(segs, total))
     if "bold" in styles:
         t["_sound_styles"] = {"bold"}
-        t["_music"], t["_sfx"] = reel_sound(c, total, workdir, music, rd.shows_hook(t),
-                                            c.get("_music_cache"), out_dir)
+        t["_music"] = reel_sound(c, total, workdir, music, c.get("_music_cache"), out_dir)
     c["tight"] = {"seconds": round(total, 1), "removed": round(dur - total, 1),
                   "cuts": len(segs) - 1, "files": {}}
     log(f"  tight {c['n']}: {dur:.0f}s -> {total:.0f}s, {len(segs) - 1} cuts")

@@ -351,11 +351,9 @@ import wave as _wave                                            # noqa: E402
 with _wave.open(_wav) as _f:
     check("music bed: stereo, 48 kHz, right length",
           (_f.getnchannels(), _f.getframerate(), round(_f.getnframes() / 48000, 1)) == (2, 48000, 3.0))
-rfx.sfx_track(_wav, 2.0, at=(0.0,))
-with _wave.open(_wav) as _f:
-    check("sfx track the right length", round(_f.getnframes() / 48000, 1) == 2.0)
+check("music sits a little higher than it did (-24 dB)", -24 < rfx.MUSIC_DB < -14)
 
-# ElevenLabs music and sound effects -------------------------------------------
+# ElevenLabs --------------------------------------------------------------------
 import eleven                                                   # noqa: E402
 _sent = []
 
@@ -404,9 +402,6 @@ with tempfile.TemporaryDirectory() as _d, \
           and _body["music_length_ms"] == 61400 and "No drums, no vocals" in _body["prompt"])
     check("music: at least 3 s", json.loads((eleven.music(os.path.join(_d, "m2.mp3"), 1.0), _sent[-1].data)[1])
           ["music_length_ms"] == 3000)
-    eleven.sound_effect(os.path.join(_d, "w.mp3"))
-    check("sound effect: endpoint and duration", _sent[-1].full_url.endswith("/v1/sound-generation")
-          and json.loads(_sent[-1].data)["duration_seconds"] == 1.0)
     # Scribe
     _a = os.path.join(_d, "a.mp3")
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono",
@@ -442,7 +437,7 @@ with tempfile.TemporaryDirectory() as _d, \
         check("over budget: no call made", False)
     except eleven.OverBudget:
         check("over budget: no call made", len(_sent) == _n)
-    _bed, _ = sc.reel_sound({"n": 1}, 120.0, _d, None, False)
+    _bed = sc.reel_sound({"n": 1}, 120.0, _d, None)
     check("over budget: the reel still gets a bed (generated pad)", _bed.endswith(".wav"))
     _usage.update(character_count=100000)
     _fresh_budget()
@@ -484,21 +479,20 @@ with tempfile.TemporaryDirectory() as _d, \
 with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}):
     check("no key: ElevenLabs is skipped", not eleven.available())
     with tempfile.TemporaryDirectory() as _d:
-        _bed, _sfx = sc.reel_sound({"n": 1}, 4.0, _d, None, True)
-        check("no key: the generated pad and whoosh stand in", _bed.endswith(".wav") and _sfx.endswith(".wav"))
+        _bed = sc.reel_sound({"n": 1}, 4.0, _d, None)
+        check("no key: the generated pad stands in", _bed.endswith(".wav"))
 with tempfile.TemporaryDirectory() as _d, \
         mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
-        mock.patch("eleven.music", side_effect=RuntimeError("HTTP 401")), \
-        mock.patch("eleven.sound_effect", side_effect=RuntimeError("HTTP 401")):
-    _bed, _sfx = sc.reel_sound({"n": 1}, 4.0, _d, None, True)
-    check("ElevenLabs failing never loses a reel", os.path.exists(_bed) and os.path.exists(_sfx))
+        mock.patch("eleven.music", side_effect=RuntimeError("HTTP 401")):
+    _bed = sc.reel_sound({"n": 1}, 4.0, _d, None)
+    check("ElevenLabs failing never loses a reel", os.path.exists(_bed))
 with tempfile.TemporaryDirectory() as _d, \
         mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
         mock.patch("eleven.music", side_effect=AssertionError("should not be called")) as _m:
     _old = os.path.join(_d, "music reel 1.mp3")
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
                     "-t", "6", _old], check=True)
-    _bed, _ = sc.reel_sound({"n": 1}, 4.0, _d, None, False, cached=_old)
+    _bed = sc.reel_sound({"n": 1}, 4.0, _d, None, cached=_old)
     check("rerun reuses last run's music: no new credits", _bed == _old and not _m.called)
 with tempfile.TemporaryDirectory() as _d, \
         mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "test-key"}), \
@@ -507,7 +501,7 @@ with tempfile.TemporaryDirectory() as _d, \
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
                     "-t", "2", _old], check=True)
     _keep = os.path.join(_d, "keep"); os.makedirs(_keep)
-    _bed, _ = sc.reel_sound({"n": 2}, 4.0, _d, None, False, cached=_old, keep_dir=_keep)
+    _bed = sc.reel_sound({"n": 2}, 4.0, _d, None, cached=_old, keep_dir=_keep)
     check("a reel grown past last run's music gets a new bed, kept for next time",
           _bed != _old and os.path.exists(os.path.join(_keep, "music reel 2.mp3")))
 
