@@ -767,7 +767,11 @@ def main():
     os.makedirs(os.path.dirname(LATEST_FILE), exist_ok=True)
     with open(LATEST_FILE, "w", encoding="utf-8") as f:
         f.write(build_latest_html(public_videos))
-    print(f"Built {LATEST_FILE}\nDone.")
+    print(f"Built {LATEST_FILE}")
+
+    import links_page
+    links_page.build(public_videos)
+    print("Done.")
 
 
 if __name__ == "__main__":
