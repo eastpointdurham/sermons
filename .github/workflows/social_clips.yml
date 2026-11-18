@@ -45,10 +45,6 @@ on:
         description: "tight (pauses and ums out, zooms, music; what we post), natural or both"
         required: false
         default: "tight"
-      only:
-        description: "graphics = just the carousel and quote card for drive_file_id (reels already made)"
-        required: false
-        default: ""
 
 permissions:
   contents: write        # to commit social_clips.json
@@ -110,8 +106,6 @@ jobs:
           SOCIAL_CUT: ${{ github.event.inputs.cut || vars.SOCIAL_CUT || 'tight' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           SOCIAL_MUSIC_FOLDER_ID: ${{ vars.SOCIAL_MUSIC_FOLDER_ID }}
-          SOCIAL_ONLY: ${{ github.event.inputs.only }}
-          SOCIAL_GRAPHICS: ${{ vars.SOCIAL_GRAPHICS || '1' }}
           WHISPER_MODEL: small.en
         run: python social_clips.py
 
