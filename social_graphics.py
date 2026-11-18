@@ -56,7 +56,8 @@ different line from the carousel cover.
 For each, "highlight" is an exact substring of its text (2 to 4 words) to set in the \
 accent colour with a hand-drawn underline, or "".
 
-Return ONLY a JSON object, no prose:
+Return ONLY a JSON object, no prose. It must parse as JSON: escape double quotes \
+inside strings (\\") and write line breaks as \\n.
 {{
   "carousel": {{
     "slides": [
@@ -86,17 +87,22 @@ def pick_content(transcript_text, meta):
         scripture=meta.get("scripture", ""), preacher=meta.get("preacher", "Peter Frey"),
         transcript=transcript_text)
     client = anthropic.Anthropic()
-    for attempt in range(2):
-        msg = client.messages.create(model=sc.MODEL, max_tokens=8000,
-                                     output_config={"effort": "high"},
-                                     messages=[{"role": "user", "content": prompt}])
+    messages = [{"role": "user", "content": prompt}]
+    for attempt in range(3):
+        msg = client.messages.create(model=sc.MODEL, max_tokens=16000,
+                                     output_config={"effort": "high"}, messages=messages)
         text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
         try:
             return check_content(sc.parse_plan(text))
         except ValueError as e:
-            if attempt:
+            if attempt == 2:
                 raise
-            sc.log(f"  graphics plan not usable ({e}); asking again")
+            sc.log(f"  graphics plan not usable ({e}, stop: {msg.stop_reason}); asking again")
+            if text.strip():                   # show it its own reply and ask for a fix
+                messages = [messages[0], {"role": "assistant", "content": text},
+                            {"role": "user", "content": f"That was not valid JSON ({e}). Return "
+                             "the same content again as ONLY valid JSON: escape every double "
+                             "quote inside a string as \\\" and every line break as \\n."}]
 
 
 def check_content(c):
