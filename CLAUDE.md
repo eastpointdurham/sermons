@@ -22,6 +22,11 @@ Drive "Sermons" folder into a private YouTube draft, a podcast MP3, a transcript
   else ElevenLabs, else a generated pad). No end card, no Final Cut export. Plus a
   Google Doc plan, plan.json and transcript_words.json. The workflow's `cut` input
   (natural | both) and `style` in brand.json bring back the other versions.
+  Then `social_graphics.py`: Claude picks a "sermon in slides" carousel (6-8 slides,
+  4:5) and a quote card (4:5 + 9:16 Story) from the transcript, set in the series art's
+  colours with the lockup; PNGs plus a "Graphics plan" doc go to the same drafts
+  folder. A failure never costs the reels; repo variable SOCIAL_GRAPHICS=0 turns it
+  off. Past weeks: run the workflow with `only: graphics` and that `drive_file_id`.
 
 ## ElevenLabs (`eleven.py`, ELEVENLABS_API_KEY, Creator plan)
 - Scribe transcribes each sermon once, in the reels run (verbatim, so it also finds

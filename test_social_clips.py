@@ -767,5 +767,56 @@ check("numpy numbers survive the plan JSON",
       json.loads(json.dumps({"upscale": _np.float32(2.0), "n": _np.int64(3)}, default=sc.json_safe))
       == {"upscale": 2.0, "n": 3})
 
+# --- weekly graphics: sermon-in-slides carousel and quote card ---
+import tempfile as _tf                                          # noqa: E402
+
+
+def _raises(fn):
+    try:
+        fn()
+    except ValueError:
+        return True
+    return False
+
+
+import social_graphics as sg                                    # noqa: E402
+_gc = {"carousel": {"slides": [
+    {"kind": "cover", "text": "A plain cover line that runs long enough to wrap twice.", "highlight": "wrap twice."},
+    {"kind": "point", "kicker": "One", "text": "First point.", "body": "A body line."},
+    {"kind": "scripture", "text": "A verse of scripture.", "ref": "Book 1:1 NIV"},
+    {"kind": "point", "kicker": "Two", "text": "Second point.", "highlight": "not in the text"},
+    {"kind": "close", "text": "A closing line.", "highlight": "closing"}],
+    "instagram_caption": "Caption", "facebook_caption": "Caption"},
+    "quote": {"text": "A short \"quoted\" line.", "highlight": "short", "instagram_caption": "", "facebook_caption": ""}}
+_gc = sg.check_content(_gc)
+check("graphics: a highlight not in the text is dropped", _gc["carousel"]["slides"][3]["highlight"] == "")
+check("graphics: a real highlight is kept", _gc["carousel"]["slides"][0]["highlight"] == "wrap twice.")
+check("graphics: too few slides is rejected",
+      _raises(lambda: sg.check_content({"carousel": {"slides": []}, "quote": {"text": "x"}})))
+check("graphics: highlight words found", sg._span("be far from him.".split(), "far from him.") == {1, 2, 3})
+check("graphics: curly quotes", sg.smart_quotes('He said "go" and it\'s done') ==
+      "He said \u201cgo\u201d and it\u2019s done")
+check("graphics: transcript drops fillers",
+      sg.transcript_text(words_from("So um Jesus uh wants you")) == "So Jesus wants you")
+_look = sg.series_look(_br)
+with _tf.TemporaryDirectory() as _gd:
+    _files = sg.render_all(_gc, {"title": "A Title", "scripture": "Book 1:1-9", "preacher": "A Preacher"},
+                           _look, _fd, _gd, "2026-01-04")
+    from PIL import Image as _GI
+    check("graphics: one image per slide plus two quote cards", len(_files) == 7)
+    check("graphics: slides are 4:5", _GI.open(_files[0][0]).size == (1080, 1350))
+    check("graphics: story card is 9:16", _GI.open(_files[-1][0]).size == (1080, 1920))
+    check("graphics: points numbered without the verse slide",
+          [s.get("_point") for s in _gc["carousel"]["slides"]] == [None, 1, None, 2, None])
+    check("graphics: plan doc lists every file",
+          all(n in sg.plan_html(_gc, {}, [n for _, n in _files]) for _, n in _files))
+with mock.patch("social_graphics.make", side_effect=RuntimeError("boom")):
+    sc.graphics(None, [], {}, date(2026, 1, 4), "f", "/tmp")    # must not raise
+    check("graphics: a failure never stops the reels", True)
+with mock.patch.dict(os.environ, {"SOCIAL_GRAPHICS": "0"}), mock.patch("social_graphics.make") as _mk:
+    sc.graphics(None, [], {}, date(2026, 1, 4), "f", "/tmp")
+    check("graphics: can be switched off", not _mk.called)
+check("graphics only: no drafts folder yet is an error", sc.graphics_only(None, [], "nope") == 1)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -1109,6 +1109,7 @@ def process(drive, sermon, brand, state):
             elif name.startswith(("music reel", "voice reel")):   # reused by a rerun: no new credits
                 upload(drive, os.path.join(out_dir, name), name, folder, "audio/mpeg")
         log(f"  plan: {doc.get('webViewLink')}")
+        graphics(drive, words, meta, service_date, folder, tmp)
 
     state.append({"drive_file_id": sermon["id"], "drive_file_name": sermon["name"],
                   "service_date": stamp, "drafts_folder_id": folder, "clips": len(clips),
@@ -1117,9 +1118,48 @@ def process(drive, sermon, brand, state):
     return folder
 
 
+SERMON_FOLDER = os.environ.get("SERMON_FOLDER_ID", "1SCMlaqWua24gPPU-Z7yF19pisehp3xu_")
+
+
+def graphics(drive, words, meta, service_date, folder, workdir):
+    """The week's carousel and quote card; a failure never costs the reels."""
+    if os.environ.get("SOCIAL_GRAPHICS", "1") != "1":
+        return
+    try:
+        import social_graphics
+        link = social_graphics.make(drive, words, meta, service_date, folder, workdir, SERMON_FOLDER)
+        log(f"  graphics plan: {link}")
+    except Exception as e:
+        log(f"  ! graphics skipped: {e}")
+
+
+def graphics_only(drive, state, file_id):
+    """Carousel and quote card for a sermon whose reels are already made, from the
+    transcript saved in its drafts folder (no video, no ElevenLabs credits)."""
+    from upload_sermon import parse_date_from_filename
+    rec = next((r for r in reversed(state) if r.get("drive_file_id") == file_id
+                and r.get("drafts_folder_id")), None)
+    if not rec:
+        log("No drafts folder for that sermon yet; run the reels first.")
+        return 1
+    service_date = date.fromisoformat(rec["service_date"])
+    meta = sermon_meta(service_date)
+    log(f"=== graphics for {rec['drive_file_name']} ({service_date})  {meta.get('title', '')}")
+    fetch_fonts(drive)
+    with tempfile.TemporaryDirectory() as tmp:
+        files = {f["name"]: f for f in list_folder(drive, rec["drafts_folder_id"])}
+        path = os.path.join(tmp, "transcript_words.json")
+        download(drive, files["transcript_words.json"]["id"], path)
+        os.environ["SOCIAL_GRAPHICS"] = "1"
+        graphics(drive, json.load(open(path)), meta, service_date, rec["drafts_folder_id"], tmp)
+    return 0
+
+
 def main():
     brand = load_brand()
     state = load_state()
+    if os.environ.get("SOCIAL_ONLY") == "graphics":
+        return graphics_only(drive_service(), state, os.environ.get("SOCIAL_ONLY_FILE_ID", ""))
     if os.environ.get("LOCAL_VIDEO"):
         from upload_sermon import parse_date_from_filename
         name = os.path.basename(os.environ["LOCAL_VIDEO"])
