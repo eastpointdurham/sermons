@@ -454,7 +454,64 @@ def upload_to_youtube(youtube, path, title, description, tags):
     return response["id"]
 
 
-def finish_video(video_path, workdir):
+VIDEO_RE = re.compile(r"\.(mp4|mov|m4v)$", re.I)
+BUMPER_HOLD = 1.0       # seconds the bumper's last frame holds before it fades
+BUMPER_FADE = 1.0       # seconds it takes to dissolve into the sermon
+
+
+def pick_bumper(files, series):
+    """The series' bumper video in Series Graphics ("All In bumper.mp4"), or None."""
+    import thumbnail
+    hits = [f for f in files if VIDEO_RE.search(f["name"]) and "bumper" in f["name"].lower()
+            and thumbnail.matches_series(re.sub(r"(?i)\s*bumper", "", f["name"]), series)]
+    return min(hits, key=lambda f: (len(f["name"]), f["name"])) if hits else None
+
+
+def series_bumper(drive, entry, tmp):
+    """Download this Sunday's series bumper, if the series has one. SERMON_BUMPER=off
+    skips it. Never raises: the sermon goes up without it."""
+    if os.environ.get("SERMON_BUMPER", "on").lower() in ("off", "0", "no"):
+        return None
+    series = (entry or {}).get("series") or ""
+    if not series:
+        return None
+    try:
+        import thumbnail
+        folder = thumbnail._folder(drive, "SERIES_GRAPHICS_FOLDER_ID", "Series Graphics",
+                                   SERMON_FOLDER_ID)
+        f = pick_bumper(list_folder(drive, folder), series)
+        if not f:
+            print(f"  no bumper for {thumbnail.series_key(series)!r} in Series Graphics", flush=True)
+            return None
+        path = os.path.join(tmp, "bumper" + os.path.splitext(f["name"])[1])
+        download(drive, f["id"], path)
+        print(f"  bumper: {f['name']}", flush=True)
+        return path
+    except Exception as e:
+        print(f"  ! bumper unavailable ({e}); uploading without it", flush=True)
+        return None
+
+
+def bumper_graph(base_filter, bumper_len, width, height, fps):
+    """filter_complex that lays the bumper over the opening of the sermon (whose
+    sound plays underneath), holds its last frame, then dissolves into the video."""
+    fade_at = bumper_len + BUMPER_HOLD
+    base = f"[0:v]{base_filter + ',' if base_filter else ''}format=yuv420p[base]"
+    bump = (f"[1:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps},format=yuva420p,"
+            f"tpad=stop_mode=clone:stop_duration={BUMPER_HOLD + BUMPER_FADE},"
+            f"fade=t=out:st={fade_at:.2f}:d={BUMPER_FADE}:alpha=1[bump]")
+    return f"{base};{bump};[base][bump]overlay=eof_action=pass,format=yuv420p[v]"
+
+
+def _video_shape(path):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                          "stream=width,height,r_frame_rate", "-of", "csv=p=0", path],
+                         capture_output=True, text=True, check=True).stdout.strip().split(",")
+    return int(out[0]), int(out[1]), out[2]
+
+
+def finish_video(video_path, workdir, bumper=None):
     """(path, notes, audio_cleaned): the sermon as it goes to YouTube, with
       - the picture graded like the reels (grade.py: white balance, levels, a
         gentle filmic look, measured once over the whole sermon so nothing
@@ -481,7 +538,9 @@ def finish_video(video_path, workdir):
             import audio
             clean, info = audio.filters(video_path)
             notes.append(f"sound: {info}")
-        if not lut and clean is None:
+        if bumper:
+            notes.append("bumper over the opening")
+        if not lut and clean is None and not bumper:
             return video_path, notes, False
         chain = ",".join(f for f in (clean, "loudnorm=I=-14:TP=-1.5:LRA=11",
                                      "aresample=48000") if f)
@@ -490,14 +549,25 @@ def finish_video(video_path, workdir):
         # identity grade at CRF 12 is within 1.5 dB of a lossless 8-bit 4:2:0
         # copy, which is what YouTube streams anyway); same size and frame rate
         # as shot; the sound stays uncompressed (24-bit PCM) for YouTube to encode
-        video = (["-vf", f"{lut},format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                  "-crf", "12", "-profile:v", "high"] if lut else ["-c:v", "copy"])
+        x264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-profile:v", "high"]
         sound = (["-af", chain, "-c:a", "pcm_s24le"] if clean is not None
                  else ["-c:a", "copy"])
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video_path,
-                        "-map", "0:v:0", "-map", "0:a?"] + video + sound + [out], check=True)
+        if bumper:
+            import trim_start
+            w, h, fps = _video_shape(video_path)
+            graph = bumper_graph(lut, trim_start.duration(bumper), w, h, fps)
+            cmd = (["ffmpeg", "-v", "error", "-y", "-i", video_path, "-i", bumper,
+                    "-filter_complex", graph, "-map", "[v]", "-map", "0:a?"] + x264 + sound + [out])
+        else:
+            video = (["-vf", f"{lut},format=yuv420p"] + x264) if lut else ["-c:v", "copy"]
+            cmd = (["ffmpeg", "-v", "error", "-y", "-i", video_path,
+                    "-map", "0:v:0", "-map", "0:a?"] + video + sound + [out])
+        subprocess.run(cmd, check=True)
         return out, notes, clean is not None
     except Exception as e:                       # the sermon as shot beats no sermon
+        if bumper:                               # try again without the bumper first
+            print(f"  ! bumper overlay failed ({e}); finishing without it", flush=True)
+            return finish_video(video_path, workdir, None)
         return video_path, notes + [f"finishing failed ({e}); uploading as shot"], False
 
 
@@ -772,7 +842,8 @@ def main():
             video_path = prepare_source(drive, video, entry, service_date, video_path, tmp)
 
             print("  colour and sound…", flush=True)
-            finished, notes, sound_cleaned = finish_video(video_path, tmp)
+            finished, notes, sound_cleaned = finish_video(
+                video_path, tmp, series_bumper(drive, entry, tmp))
             for note in notes:
                 print(f"  {note}", flush=True)
             if finished != video_path:

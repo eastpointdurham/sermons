@@ -411,5 +411,17 @@ for _k, _v in _saved.items():
     setattr(U, _k, _v)
 del _sys.modules["thumbnail"]
 
+# series bumper over the opening of the YouTube video
+_bf = [{"name": "All in Ver. 2.png", "id": "a"}, {"name": "All In bumper.mp4", "id": "b"},
+       {"name": "All In bumper old.mp4", "id": "c"}, {"name": "Real Life bumper.mov", "id": "d"}]
+check("bumper: the series' own", (U.pick_bumper(_bf, "ALL IN: Following Jesus in the Gospel of Mark") or {}).get("id"), "b")
+check("bumper: none for another series", U.pick_bumper(_bf, "Advent Series - The God Who"), None)
+check("bumper: none without a series", U.pick_bumper(_bf, ""), None)
+check("bumper: no series, nothing fetched", U.series_bumper(None, {"series": ""}, "."), None)
+_g = U.bumper_graph("lut3d=x.cube", 10.0, 1920, 1080, "30000/1001")
+check("bumper: graded base under it", _g.startswith("[0:v]lut3d=x.cube,format=yuv420p[base]"), True)
+check("bumper: holds then dissolves", "stop_duration=2.0" in _g and "fade=t=out:st=11.00:d=1.0:alpha=1" in _g, True)
+check("bumper: ungraded base", U.bumper_graph("", 10.0, 1280, 720, "30/1").startswith("[0:v]format=yuv420p"), True)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

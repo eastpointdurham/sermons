@@ -43,6 +43,13 @@ Oakes Grotesk is licensed: fonts are downloaded at run time from a private Drive
 (`SOCIAL_FONTS_FOLDER_ID`). Never commit font files; this repo is public.
 Sunburst mark: `social/sunburst.svg`.
 
+## Series bumper
+If Drive "Series Graphics" holds a video named "<series> bumper.mp4" (e.g. "All In
+bumper.mp4"), `upload_sermon.py` lays it over the opening of the YouTube video in the
+finishing encode: the sermon's sound plays underneath, the last frame holds 1 s, then
+it dissolves into the sermon over 1 s. Matched by the planning doc's series name;
+podcast MP3 and reels are untouched. SERMON_BUMPER=off skips it.
+
 ## Thumbnails
 `thumbnail.py`, settled 2026-09-28 after several rounds; keep changes within this layout.
 Full-bleed photo, series lockup top left (background keyed out), title + scripture
