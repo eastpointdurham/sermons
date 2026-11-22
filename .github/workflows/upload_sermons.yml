@@ -33,6 +33,10 @@ on:
         description: "Don't wait for soundboard audio (none this week)"
         required: false
         default: "false"
+      thumbnail_photo:
+        description: "Use this photo for the thumbnail (name, e.g. Peter Frey 2026-05-24 a), from Thumbnail Photos only"
+        required: false
+        default: ""
 
 permissions:
   contents: write        # to commit uploaded_sermons.json and seen_sermons.json
@@ -95,6 +99,7 @@ jobs:
           THUMBNAIL_PHOTOS_FOLDER_ID: ${{ vars.THUMBNAIL_PHOTOS_FOLDER_ID }}
           THUMBNAILS_FOLDER_ID: ${{ vars.THUMBNAILS_FOLDER_ID }}
           REPLACE_DATE: ${{ github.event.inputs.replace_date }}
+          THUMBNAIL_PHOTO: ${{ github.event.inputs.thumbnail_photo }}
           REPAIR_DATE: ${{ github.event.inputs.repair_date }}
           MAX_PER_RUN: ${{ github.event.inputs.max_per_run || '1' }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}

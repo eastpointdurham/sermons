@@ -83,9 +83,11 @@ def choose_photo(drive, photos_root, preacher, service_date):
     Photos/Community when the preacher has none (a guest). Only these hand-picked
     folders are used."""
     folders = _photo_folders(drive, photos_root)
+    want = os.environ.get("THUMBNAIL_PHOTO", "").strip()
     for key in (_norm(preacher), _norm(COMMUNITY)):
         if key and key in folders:
-            photo = pick_photo(sc.list_folder(drive, folders[key]["id"]), service_date)
+            files = sc.list_folder(drive, folders[key]["id"])
+            photo = (named_photo(files, want) if want else None) or pick_photo(files, service_date)
             if photo:
                 photo["speaker"] = key == _norm(preacher)
                 return photo
@@ -104,6 +106,13 @@ def community_options(drive, photos_root, service_date, n=BACKUP_OPTIONS, skip=N
         return []
     start = service_date.toordinal() // 7 * n
     return [photos[(start + i) % len(photos)] for i in range(min(n, len(photos)))]
+
+
+def named_photo(files, want):
+    """THUMBNAIL_PHOTO: a one-off choice from the same hand-picked folder, by name
+    ("Peter Frey 2026-05-24 a"); None if nothing there matches."""
+    hits = [f for f in files if IMAGE_RE.search(f["name"]) and _norm(want) in _norm(f["name"])]
+    return min(hits, key=lambda f: f["name"]) if hits else None
 
 
 def pick_photo(files, service_date):

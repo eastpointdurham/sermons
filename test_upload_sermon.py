@@ -411,6 +411,11 @@ for _k, _v in _saved.items():
     setattr(U, _k, _v)
 del _sys.modules["thumbnail"]
 
+import thumbnail as _TH
+_ph = [{"name": "Peter Frey 2026-05-24 a.jpg"}, {"name": "Peter Frey 2026-05-24 b.jpg"}, {"name": "notes.txt"}]
+check("thumbnail: photo chosen by name", _TH.named_photo(_ph, "Peter Frey 2026-05-24 b")["name"], "Peter Frey 2026-05-24 b.jpg")
+check("thumbnail: unknown name falls back", _TH.named_photo(_ph, "Someone Else"), None)
+
 # series bumper over the opening of the YouTube video
 _bf = [{"name": "All in Ver. 2.png", "id": "a"}, {"name": "All In bumper.mp4", "id": "b"},
        {"name": "All In bumper old.mp4", "id": "c"}, {"name": "Real Life bumper.mov", "id": "d"}]
