@@ -316,6 +316,12 @@ check("'no, no, no' is not a stumble",
 check("'you know,' as an aside", rfx.drop_words(_w(("and,", 0, .2), ("you", .3, .4), ("know,", .45, .6),
                                                     ("it", .7, .8))) == {1, 2})
 check("'I like it' kept", not rfx.drop_words(_w(("I", 0, .1), ("like", .15, .3), ("it.", .35, .5))))
+check("'Like,' opening a sentence dropped",
+      sorted(rfx.drop_words(_w(("cure.", 0, .3), ("Like,", .4, .6), ("I'm", .7, .9), ("free.", 1, 1.2)))) == [1])
+check("'..., like the' aside dropped",
+      sorted(rfx.drop_words(_w(("have,", 0, .3), ("like", .4, .6), ("the", .7, .8), ("news.", .9, 1.1)))) == [1])
+check("'things like death' kept",
+      not rfx.drop_words(_w(("things", 0, .3), ("like", .4, .6), ("death.", .7, 1))))
 _segs = rfx.tight_segments(_ws, 0.0, 5.75, None, fps=30)
 _total = sum(e - s for s, e in _segs)
 check("tight cut is shorter", _total < 5.75 - 1.5)
@@ -748,6 +754,21 @@ check("camera keeps a slow walker well inside a tight crop",
 check("camera holds still for small sways",
       _np2.ptp(RF.follow(0.5 + 0.01 * _np2.sin(_np2.arange(300) / 5), _crop)) == 0)
 check("no speaker when nobody is seen", RF.pick_speaker([(0, []), (6, [])]) == [])
+_brisk = [(k * 6, [(min(0.22 + max(0, k - 10) * 0.055, 0.88), 0.36, 0.1, 0.9)]) for k in range(40)]
+_bt = RF.pick_speaker(_brisk)
+_jump = ([(k * 6, [(0.22, 0.36, 0.1, 0.9)]) for k in range(12)] +
+         [(k * 6, [(0.62, 0.36, 0.1, 0.9), (0.80, 0.62, 0.05, 0.7)]) for k in range(12, 60)])
+_jt = RF.pick_speaker(_jump)
+check("a jump cut across the stage keeps the speaker's opening",
+      _jt[0][1][0] < 0.25 and all(c[1] < 0.5 for _, c in _jt))
+# this week's reel 1: standing left, then a walk split into pieces by jump cuts, the
+# heaviest piece far across the stage; the pieces link up and the opening is kept
+_pieces = ([(k, 0.22) for k in range(14)] + [(k, 0.39 + 0.035 * (k - 14)) for k in range(14, 19)]
+           + [(k, 0.62 + 0.03 * (k - 19)) for k in range(19, 24)] + [(k, 0.84) for k in range(24, 51)])
+_pt = RF.pick_speaker([(k * 6, [(x, 0.37, 0.1, 0.92)]) for k, x in _pieces])
+check("a walk split by jump cuts links up, opening included", len(_pt) == 51 and _pt[0][1][0] < 0.25)
+check("a brisk walk across the stage stays one speaker (start included)",
+      len(_bt) == 40 and _bt[0][1][0] < 0.25)
 
 # wide shots: closer crop, captions in the space above the head
 check("face low in a wide crop", RF.face_position(0.55, 0.95) > RF.LOW_FACE)
@@ -766,6 +787,16 @@ import numpy as _np                                             # noqa: E402
 check("numpy numbers survive the plan JSON",
       json.loads(json.dumps({"upscale": _np.float32(2.0), "n": _np.int64(3)}, default=sc.json_safe))
       == {"upscale": 2.0, "n": 3})
+
+# music beds: skip a near-silent swell-in so the music is there from frame one
+import tempfile as _tf                                          # noqa: E402
+_mdir = _tf.mkdtemp()
+_m = os.path.join(_mdir, "bed.wav")
+subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                "sine=f=220:d=12,volume='if(lt(t,3),0.003,0.5)':eval=frame", _m], check=True)
+check("music bed's silent swell-in found", 2.6 <= rfx.music_start(_m) <= 3.0)
+subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=12", _m], check=True)
+check("music bed that starts at once is not skipped", rfx.music_start(_m) == 0.0)
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

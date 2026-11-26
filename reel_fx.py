@@ -42,11 +42,11 @@ def drop_words(words):
     drop = set()
     for i, w in enumerate(words):
         n, prev = _norm(w["w"]), words[i - 1]["w"] if i else ""
-        aside = not i or prev.endswith(",")
+        aside = not i or bool(re.search(r"[,.?!][\"'”’)]*$", prev))   # mid-sentence or opening one
         nxt = words[i + 1] if i + 1 < len(words) else None
         if n in FILLERS:
             drop.add(i)
-        elif n == "like" and w["w"].endswith(",") and aside:
+        elif n == "like" and aside:                    # "..., like, ..." / "Like, I'm": filler
             drop.add(i)
         elif (n == "you" and nxt and _norm(nxt["w"]) == "know" and nxt["w"].endswith(",")
               and aside):
@@ -300,6 +300,32 @@ def _lowpass(x, cutoff):
         acc = (1 - a) * v + a * acc
         y[i] = acc
     return y
+
+
+MUSIC_LEAD_MAX = 8.0     # never skip more than this of a bed's opening
+
+
+def music_start(path, max_skip=MUSIC_LEAD_MAX):
+    """Seconds of near-silent swell at the top of a music bed (ElevenLabs beds often
+    fade in over ~5 s, which under a ducked voice reads as "no music yet"). The reel
+    starts the bed here, so the music is there from the first frame."""
+    try:
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-t", f"{max_skip + 4:.1f}",
+                              "-ac", "1", "-ar", "8000", "-f", "f32le", "-"],
+                             check=True, capture_output=True).stdout
+        x = np.frombuffer(raw, dtype=np.float32)
+        win = 800                                        # 0.1 s
+        n = len(x) // win
+        if n < 10:
+            return 0.0
+        db = 20 * np.log10(np.sqrt((x[:n * win].reshape(n, win) ** 2).mean(axis=1)) + 1e-9)
+        ref = np.percentile(db, 80)
+        loud = np.nonzero(db >= ref - 10)[0]
+        if not len(loud):
+            return 0.0
+        return round(min(max(loud[0] * 0.1 - 0.1, 0.0), max_skip), 2)
+    except Exception:
+        return 0.0
 
 
 def music_bed(path, dur, seed=0, chord_s=4.0):

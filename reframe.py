@@ -122,7 +122,9 @@ def pick_speaker(samples, max_gap=10):
                 if gap < 1 or gap > max_gap or id(t) in taken:
                     continue
                 dx, dy = abs(cand[0] - last[0]), abs(cand[1] - last[1])
-                if dx < 0.03 + 0.02 * gap and dy < 0.08 and 0.6 < cand[2] / last[2] < 1.6:
+                # 0.07 a sample (5 a second) keeps a speaker walking briskly across the
+                # stage on one track; 0.05 split him mid-walk and lost the first part
+                if dx < 0.04 + 0.03 * gap and dy < 0.08 and 0.6 < cand[2] / last[2] < 1.6:
                     if best_d is None or dx < best_d:
                         best, best_d = t, dx
             if best is None:
@@ -139,19 +141,33 @@ def pick_speaker(samples, max_gap=10):
     main = max(tracks, key=weight)
     chosen = sorted(main)
     # stitch on tracks that pick up where the speaker's left off (he walked
-    # faster than the gate, or was hidden for a few seconds)
-    for t in sorted((t for t in tracks if t is not main), key=weight, reverse=True):
-        if len(t) < 3:
-            continue
-        ks = {k for k, _, _ in chosen}
-        if any(k in ks for k, _, _ in t):
-            continue
-        before = [c for c in chosen if c[0] < t[0][0]]
-        after = [c for c in chosen if c[0] > t[-1][0]]
-        near = ((before and abs(before[-1][2][0] - t[0][2][0]) < 0.2) or
-                (after and abs(after[0][2][0] - t[-1][2][0]) < 0.2))
-        if near:
-            chosen = sorted(chosen + t)
+    # faster than the gate, was hidden for a few seconds, or a jump cut moved him).
+    # Repeat until nothing more joins: a walk split into pieces only links up
+    # piece by piece, and the heaviest piece may be the one furthest away.
+    rest = sorted((t for t in tracks if t is not main and len(t) >= 3), key=weight, reverse=True)
+
+    def joins(a, b):                # a ends just before b starts: the same person?
+        ka, ca = a[0], a[2]
+        kb, cb = b[0], b[2]
+        if abs(ca[0] - cb[0]) < 0.2:
+            return True
+        return (kb - ka <= 3 and abs(ca[1] - cb[1]) < 0.06
+                and 0.75 < cb[2] / ca[2] < 1.33)
+
+    grew = True
+    while grew:
+        grew = False
+        for t in list(rest):
+            ks = {k for k, _, _ in chosen}
+            if any(k in ks for k, _, _ in t):
+                rest.remove(t)
+                continue
+            before = [c for c in chosen if c[0] < t[0][0]]
+            after = [c for c in chosen if c[0] > t[-1][0]]
+            if (before and joins(before[-1], t[0])) or (after and joins(t[-1], after[0])):
+                chosen = sorted(chosen + t)
+                rest.remove(t)
+                grew = True
     return [(i, c[:3]) for _, i, c in chosen]
 
 

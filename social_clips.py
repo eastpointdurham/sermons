@@ -623,10 +623,11 @@ def render_clip(video_path, clip, brand, out_path, workdir, layout, style="edito
     finish = "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000"
     if style in clip.get("_sound_styles", ()):     # music bed ducked under the voice
         import reel_fx
-        inputs += ["-i", clip["_music"]]
+        lead = reel_fx.music_start(clip["_music"])         # skip the bed's silent swell-in
+        inputs += ["-ss", f"{lead:.2f}", "-i", clip["_music"]]
         fade = max(dur - 0.8, 0)
         graph += (f";[3:a]{clip['_audio'] or 'anull'},asplit[v1][v2];"
-                  f"[4:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,"
+                  f"[4:a]aformat=sample_rates=48000:channel_layouts=stereo,afade=t=in:d=0.25,apad,"
                   f"atrim=duration={dur:.3f},afade=t=out:st={fade:.3f}:d=0.8,"
                   f"volume={reel_fx.MUSIC_DB}dB[m];"
                   f"[m][v1]sidechaincompress=threshold=0.02:ratio=6:attack=30:release=700[md];"
@@ -683,12 +684,13 @@ def reel_sound(c, total, workdir, music, cached=None, keep_dir=None):
     import reel_fx
     import eleven
     bed = music
-    if not bed and cached and audio_seconds(cached) >= total + 0.2:
+    if not bed and cached and audio_seconds(cached) - reel_fx.music_start(cached) >= total + 0.2:
         bed = cached
         log(f"    music: last run's ElevenLabs bed")
     if not bed and eleven.available():
         try:
-            bed = eleven.music(os.path.join(workdir, f"music{c['n']}.mp3"), total + 0.5, c.get("kind", ""))
+            bed = eleven.music(os.path.join(workdir, f"music{c['n']}.mp3"),
+                               total + 0.5 + reel_fx.MUSIC_LEAD_MAX, c.get("kind", ""))
             log(f"    music: ElevenLabs ({total:.0f}s)")
             if keep_dir:
                 import shutil
@@ -993,6 +995,16 @@ def process(drive, sermon, brand, state):
                             voice_cache.setdefault(int(m.group(2)), {})[f["name"]] = path
             except Exception as e:
                 log(f"  ! could not fetch last run's music: {e}")
+
+        if not reused and os.environ.get("LOCAL_OUT") and os.path.isdir(os.environ["LOCAL_OUT"]):
+            for name in os.listdir(os.environ["LOCAL_OUT"]):   # testing: last local run's ElevenLabs audio
+                m = re.fullmatch(r"(music|voice) reel (\d+)( \w+)?\.mp3", name)
+                if m:
+                    path = os.path.join(os.environ["LOCAL_OUT"], name)
+                    if m.group(1) == "music":
+                        music_cache[int(m.group(2))] = path
+                    else:
+                        voice_cache.setdefault(int(m.group(2)), {})[name] = path
 
         if reused:
             if os.environ.get("SOCIAL_EXTEND_CLIP") and (os.environ.get("SOCIAL_START_AT")
